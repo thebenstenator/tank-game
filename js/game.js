@@ -32,6 +32,7 @@ class Tank {
     this.fallDist = 0;
     this.parachuting = false;
     this.lastTrail = null;
+    this.lastShot = null;
     this.lastHitBy = null;
     this.weapon = 'baby';
     this.angle = 60;
@@ -350,6 +351,7 @@ class Game {
     const a = t.angle * DEG;
     const p = this.makeProjectile(m.x, m.y, Math.cos(a) * sp, -Math.sin(a) * sp, w, t, 'shell');
     t.lastTrail = [{ x: m.x, y: m.y }];
+    t.lastShot = { angle: Math.round(t.angle), power: Math.round(t.power) };
     p.trailRec = t.lastTrail;
     this.projectiles.push(p);
     this.state = 'resolve';
@@ -1033,14 +1035,45 @@ class Game {
     if (!this.humanTurn) return;
     const t = this.current;
     if (t.lastTrail && t.lastTrail.length > 1) {
+      // Previous shot: a dashed line in the tank's colour over a dark outline, so it reads
+      // against any sky or dirt, plus a marker where it landed with the angle/power used.
+      const tr = t.lastTrail, px = 1 / this.view.scale; // one screen pixel in world units
+      const path = () => { ctx.beginPath(); ctx.moveTo(tr[0].x, tr[0].y); for (const p of tr) ctx.lineTo(p.x, p.y); };
       ctx.save();
-      ctx.setLineDash([3, 6]);
-      ctx.strokeStyle = rgbStr(t.rgb, 1, 0.35);
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(t.lastTrail[0].x, t.lastTrail[0].y);
-      for (const p of t.lastTrail) ctx.lineTo(p.x, p.y);
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.setLineDash([7 * px, 6 * px]);
+      path();
+      ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+      ctx.lineWidth = 4.5 * px;
       ctx.stroke();
+      path();
+      ctx.strokeStyle = rgbStr(t.rgb, 1.2, 0.9);
+      ctx.lineWidth = 2.2 * px;
+      ctx.stroke();
+      ctx.setLineDash([]);
+      const end = tr[tr.length - 1];
+      if (end.x > -20 && end.x < W + 20) {
+        const ex = clamp(end.x, 4, W - 4), ey = clamp(end.y, 4, H - 4);
+        ctx.beginPath();
+        ctx.arc(ex, ey, 7 * px, 0, TAU);
+        ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+        ctx.lineWidth = 4 * px;
+        ctx.stroke();
+        ctx.strokeStyle = rgbStr(t.rgb, 1.2, 1);
+        ctx.lineWidth = 2 * px;
+        ctx.stroke();
+        if (t.lastShot) {
+          const label = `${t.lastShot.angle}° · ${t.lastShot.power}`;
+          ctx.font = `600 ${12 * px}px 'Chakra Petch', sans-serif`;
+          ctx.textAlign = ex > W - 80 ? 'right' : ex < 80 ? 'left' : 'center';
+          ctx.lineWidth = 3 * px;
+          ctx.strokeStyle = 'rgba(0,0,0,0.7)';
+          ctx.strokeText(label, ex, ey - 13 * px);
+          ctx.fillStyle = rgbStr(t.rgb, 1.25, 1);
+          ctx.fillText(label, ex, ey - 13 * px);
+        }
+      }
       ctx.restore();
     }
     const a = t.angle * DEG;
