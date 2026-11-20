@@ -1,11 +1,26 @@
 # Howitzer Hills
 
 A turn-based artillery game in the spirit of the early-90s DOS classics, with modern visuals.
-Plain HTML5 Canvas + JavaScript — no build step, no dependencies.
+Plain HTML5 Canvas + JavaScript — no build step. Local play has no dependencies; online play uses [PeerJS](https://peerjs.com) from a CDN.
 
 ## Play
 
-Open `index.html` in a browser. (Fonts load from Google Fonts; everything else is local.)
+Open `index.html` in a browser, or play the hosted copy at https://thebenstenator.github.io/tank-game/. (Fonts load from Google Fonts.)
+
+## Online play with friends
+
+1. **Host:** open the game, choose **Host online**, and you get a 5-letter room code. Click **Copy invite** to copy a link with the code in it (or just read the code out).
+2. **Friends:** open the game, choose **Join online**, enter their name and the code (an invite link fills the code in for them).
+3. Everyone who joins shows up in the host's list. The host can add CPU tanks, set the rules and press **Start the War**.
+
+Everyone plays on their own keyboard and mouse. While someone aims, everyone else sees their turret move live. Between rounds, everyone shops at the same time on their own screen. If a friend drops out, a CPU takes over their tank.
+
+How it works: browsers connect directly to each other over WebRTC (PeerJS's free public server only introduces them). The host's browser runs the real game; when anyone fires, the host sends the shot and a random seed to everyone, so every screen plays the same shot, and at the start of each turn the host sends a full snapshot of terrain and tanks to correct any drift.
+
+Things to know:
+- **The host should keep the game tab in front.** Browsers pause background tabs, which pauses the game for everyone. Guests can switch away; they catch up when they come back.
+- A few very strict networks (some offices and campuses) block direct browser connections. Home internet is almost always fine.
+- Skip to end is local-only and isn't offered online.
 
 ## Controls
 
@@ -42,3 +57,4 @@ The HUD along the bottom has buttons for all of these. Once every human is knock
 - `js/ai.js` — CPU aiming (simulates shots with the real physics) and shopping
 - `js/ui.js` — menus, HUD, armory, standings
 - `js/audio.js` — synthesized sound effects (WebAudio)
+- `js/net.js` — online play: rooms, host/guest messages, snapshots

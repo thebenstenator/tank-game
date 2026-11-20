@@ -113,6 +113,35 @@ button:disabled { cursor: not-allowed; opacity: 0.4; }
 }
 
 .prow { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.ptag {
+  width: 140px; flex: none; text-align: center; font-size: 13px; font-weight: 600; color: var(--muted);
+  padding: 7px 10px; border-radius: 9px; border: 1px dashed var(--line);
+}
+.ptag.host { color: var(--accent2); border-color: rgba(255, 195, 74, 0.4); }
+.ptag.remote { color: #8fd3ff; border-color: rgba(143, 211, 255, 0.4); }
+
+/* Online */
+.mode-tabs { display: flex; gap: 4px; padding: 4px; margin: 0 auto 20px; width: fit-content; border-radius: 12px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line); }
+.mode-tabs button { border: none; background: none; padding: 8px 18px; border-radius: 9px; font-weight: 600; color: var(--muted); }
+.mode-tabs button:hover { color: var(--text); }
+.mode-tabs button.active { background: rgba(255, 255, 255, 0.1); color: var(--text); }
+.host-bar { display: flex; align-items: center; gap: 18px; padding: 12px 16px; margin-bottom: 20px; border-radius: 14px; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--line); }
+.host-bar .net-status { flex: 1; margin: 0; }
+.room-code { font-family: 'Chakra Petch', sans-serif; font-weight: 700; font-size: 30px; letter-spacing: 0.22em; color: var(--accent2); }
+.room-code.small { font-size: 18px; }
+.net-status { color: var(--muted); font-size: 14px; min-height: 1em; }
+.join-panel { max-width: 420px; margin: 0 auto; }
+.join-panel .field input { width: 200px; }
+.code-input { font-family: 'Chakra Petch', sans-serif; font-size: 20px; letter-spacing: 0.25em; text-transform: uppercase; text-align: center; }
+.join-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; }
+.lobby-row { padding: 2px 0; }
+.lobby-name { flex: 1; font-weight: 600; }
+.lobby-name em { color: var(--muted); font-style: normal; font-weight: 500; }
+.join-rules { color: var(--muted); font-size: 13px; }
+.join-wait { color: var(--text); font-size: 14px; }
+.wait-panel { max-width: 420px; text-align: center; }
+.wait-panel h2 { font-family: 'Chakra Petch', sans-serif; margin: 8px 0; }
+.wait-panel p { color: var(--muted); margin: 0; }
 .pcolor { width: 14px; height: 30px; border-radius: 5px; background: var(--c); box-shadow: 0 0 12px var(--c); flex: none; }
 input, select {
   font: inherit;

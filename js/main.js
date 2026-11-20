@@ -48,6 +48,7 @@
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
     if (game.skipping) game.fastForward(); else game.update(dt);
+    Net.tick(dt);
     game.render();
     UI.updateHUD(game);
     requestAnimationFrame(frame);

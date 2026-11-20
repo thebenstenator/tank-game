@@ -81,7 +81,35 @@
         <h1>HOWITZER <span>HILLS</span></h1>
         <p class="tagline">Angle. Power. Wind. Regret.</p>
       </div>
-      <div class="setup-cols">
+      <div class="mode-tabs" id="mode-tabs">
+        <button data-mode="local" class="active">Local</button>
+        <button data-mode="host">Host online</button>
+        <button data-mode="join">Join online</button>
+      </div>
+      <div class="host-bar hidden" id="host-bar">
+        <div>
+          <div class="eyebrow">Room code</div>
+          <div class="room-code" id="room-code">·····</div>
+        </div>
+        <p class="net-status" id="host-status">Opening a room…</p>
+        <button class="btn small" id="copy-code">Copy invite</button>
+      </div>
+      <div class="join-panel hidden" id="join-panel">
+        <div id="join-form">
+          <label class="field"><span>Your name</span><input id="join-name" maxlength="12" spellcheck="false" autocomplete="off"></label>
+          <label class="field"><span>Room code</span><input id="join-code" class="code-input" maxlength="5" placeholder="ABCDE" spellcheck="false" autocomplete="off"></label>
+          <button id="join-btn" class="btn primary big">Join room</button>
+        </div>
+        <div id="join-lobby" class="hidden">
+          <div class="join-head"><span class="eyebrow">Room</span> <span class="room-code small" id="join-room"></span></div>
+          <div id="join-players"></div>
+          <p class="join-rules" id="join-rules"></p>
+          <p class="join-wait">Waiting for the host to start the match…</p>
+          <button class="btn small" id="leave-btn">Leave room</button>
+        </div>
+        <p class="net-status" id="join-status"></p>
+      </div>
+      <div class="setup-cols" id="setup-cols">
         <section>
           <h3>Combatants</h3>
           <div id="player-rows"></div>
@@ -129,6 +157,15 @@
     </div>
   </div>
 
+  <!-- Online: waiting for other players between rounds -->
+  <div id="netwait" class="screen hidden">
+    <div class="panel wait-panel glass">
+      <div class="eyebrow">Armory</div>
+      <h2>Almost ready</h2>
+      <p id="netwait-text">Waiting for the other players…</p>
+    </div>
+  </div>
+
   <!-- Round over / game over -->
   <div id="roundover" class="screen hidden">
     <div class="panel ro-panel glass">
@@ -139,12 +176,15 @@
     </div>
   </div>
 
+  <!-- PeerJS: browser-to-browser connections for online play (local play works without it) -->
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <script src="js/utils.js"></script>
   <script src="js/config.js"></script>
   <script src="js/audio.js"></script>
   <script src="js/terrain.js"></script>
   <script src="js/background.js"></script>
   <script src="js/ai.js"></script>
+  <script src="js/net.js"></script>
   <script src="js/game.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/main.js"></script>

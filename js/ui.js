@@ -6,25 +6,31 @@ const PLAYER_TYPES = [
   ['normal', 'CPU · Normal'],
   ['hard', 'CPU · Hard'],
 ];
+const CPU_TYPES = PLAYER_TYPES.slice(1);
+
+function loadPref(k, d) { try { return localStorage.getItem('hh.' + k) || d; } catch (e) { return d; } }
+function savePref(k, v) { try { localStorage.setItem('hh.' + k, v); } catch (e) { /* ignore */ } }
 
 const UI = {
   cache: {},
   els: {},
+  mode: 'local',    // 'local' | 'host' | 'join'
 
   $(id) { return this.els[id] || (this.els[id] = document.getElementById(id)); },
 
   init(game) {
     this.game = game;
-    this.defs = [
+    this.localDefs = [
       { name: DEFAULT_NAMES[0], type: 'human' },
       { name: DEFAULT_NAMES[1], type: 'normal' },
     ];
+    this.defs = this.localDefs;
     this.renderRows();
 
     this.$('add-player').onclick = () => {
       if (this.defs.length >= MAX_PLAYERS) return;
       const i = this.defs.length;
-      this.defs.push({ name: DEFAULT_NAMES[i], type: 'normal' });
+      this.defs.push({ name: this.mode === 'host' ? `CPU ${DEFAULT_NAMES[i]}` : DEFAULT_NAMES[i], type: 'normal' });
       this.renderRows();
     };
     this.$('start-btn').onclick = () => this.startGame();
@@ -33,6 +39,7 @@ const UI = {
     this.bindHud();
     this.bindEdit('hud-angle', 'angle');
     this.bindEdit('hud-power', 'power');
+    this.bindOnline();
   },
 
   // ------------------------------------------------------------ setup
@@ -40,42 +47,81 @@ const UI = {
   renderRows() {
     const wrap = this.$('player-rows');
     wrap.innerHTML = '';
+    const online = this.mode === 'host';
+    const minRows = online ? 1 : 2;
     this.defs.forEach((d, i) => {
       const row = document.createElement('div');
       row.className = 'prow';
+      const fixed = d.type === 'host' || d.type === 'remote';
+      const types = online ? CPU_TYPES : PLAYER_TYPES;
       row.innerHTML =
         `<span class="pcolor" style="--c:${PLAYER_COLORS[i]}"></span>` +
         `<input class="pname" maxlength="12" spellcheck="false">` +
-        `<select class="ptype">${PLAYER_TYPES.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select>` +
-        `<button class="premove" title="Remove">✕</button>`;
+        (fixed
+          ? `<span class="ptag ${d.type}">${d.type === 'host' ? 'You · Host' : 'Online'}</span>`
+          : `<select class="ptype">${types.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select>`) +
+        `<button class="premove" title="${d.type === 'remote' ? 'Remove from room' : 'Remove'}">✕</button>`;
       const inp = row.querySelector('input');
       inp.value = d.name;
-      inp.oninput = () => { d.name = inp.value; };
+      inp.readOnly = d.type === 'remote';
+      inp.oninput = () => {
+        d.name = inp.value;
+        if (d.type === 'host') savePref('name', inp.value.trim());
+        if (online) this.broadcastLobby();
+      };
       const sel = row.querySelector('select');
-      sel.value = d.type;
-      sel.onchange = () => { d.type = sel.value; };
+      if (sel) {
+        sel.value = d.type;
+        sel.onchange = () => { d.type = sel.value; if (online) this.broadcastLobby(); };
+      }
       const rm = row.querySelector('button');
-      rm.disabled = this.defs.length <= 2;
-      rm.onclick = () => { this.defs.splice(i, 1); this.renderRows(); };
+      rm.disabled = d.type === 'host' || this.defs.length <= minRows;
+      rm.onclick = () => {
+        if (d.type === 'remote') { Net.kick(d.peer); return; }
+        this.defs.splice(i, 1);
+        this.renderRows();
+      };
       wrap.appendChild(row);
     });
     this.$('add-player').disabled = this.defs.length >= MAX_PLAYERS;
+    this.$('add-player').textContent = online ? '+ Add CPU' : '+ Add tank';
+    if (online) {
+      this.$('start-btn').disabled = this.defs.length < 2 || !Net.code;
+      this.broadcastLobby();
+    } else {
+      this.$('start-btn').disabled = false;
+    }
   },
 
-  startGame() {
-    Sound.init();
-    const settings = {
+  readSettings() {
+    return {
       rounds: +this.$('opt-rounds').value,
       money: +this.$('opt-money').value,
       wind: this.$('opt-wind').value,
       terrain: this.$('opt-terrain').value,
       windChange: this.$('opt-windchange').checked,
     };
+  },
+
+  rulesSummary() {
+    const s = this.readSettings();
+    const label = id => { const el = this.$(id); const o = el.options && el.options[el.selectedIndex]; return o ? o.textContent : el.value; };
+    return `${s.rounds} round${s.rounds === 1 ? '' : 's'} · ${fmtMoney(s.money)} to start · ${label('opt-terrain')} terrain · ${label('opt-wind')} wind`;
+  },
+
+  startGame() {
+    Sound.init();
+    const settings = this.readSettings();
     const defs = this.defs.map((d, i) => ({
       name: d.name.trim() || DEFAULT_NAMES[i],
       color: PLAYER_COLORS[i],
-      ai: d.type === 'human' ? null : d.type,
+      ai: d.type === 'human' || d.type === 'host' || d.type === 'remote' ? null : d.type,
+      owner: d.type === 'host' ? 'host' : d.type === 'remote' ? d.peer : null,
     }));
+    if (this.mode === 'host') {
+      if (defs.length < 2) return;
+      Net.startMatch();
+    }
     this.$('setup').classList.add('hidden');
     if (document.activeElement) document.activeElement.blur();
     this.cache = {};
@@ -83,9 +129,174 @@ const UI = {
   },
 
   backToMenu() {
-    ['shop', 'roundover'].forEach(id => this.$(id).classList.add('hidden'));
+    ['shop', 'roundover', 'netwait'].forEach(id => this.$(id).classList.add('hidden'));
     this.$('setup').classList.remove('hidden');
     this.game.preview();
+    if (Net.isHost) { Net.backToLobby(); this.renderRows(); }
+    if (Net.isClient) this.showJoinLobby(this.lastLobby);
+  },
+
+  // ------------------------------------------------------------ online
+
+  bindOnline() {
+    this.$('mode-tabs').querySelectorAll('button').forEach(b => {
+      b.onclick = () => this.setMode(b.dataset.mode);
+    });
+    this.$('join-btn').onclick = () => this.joinRoom();
+    this.$('join-code').oninput = e => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); };
+    this.$('join-code').onkeydown = e => { if (e.key === 'Enter') this.joinRoom(); };
+    this.$('join-name').value = loadPref('name', '');
+    this.$('leave-btn').onclick = () => { Net.leave(); this.showJoinForm(''); };
+    this.$('copy-code').onclick = () => this.copyInvite();
+    ['opt-rounds', 'opt-money', 'opt-wind', 'opt-terrain', 'opt-windchange'].forEach(id => {
+      this.$(id).addEventListener('change', () => { if (this.mode === 'host') this.broadcastLobby(); });
+    });
+
+    Net.init(this.game, {
+      hostReady: code => {
+        this.$('room-code').textContent = code;
+        this.$('host-status').textContent = 'Share the code. Friends join from the “Join online” tab.';
+        this.renderRows();
+      },
+      error: msg => {
+        if (this.mode === 'join') this.showJoinForm(msg);
+        else if (this.mode === 'host') this.$('host-status').textContent = msg;
+      },
+      canJoin: () => this.defs.length < MAX_PLAYERS,
+      guestJoined: (peer, name) => {
+        this.defs.push({ name, type: 'remote', peer });
+        this.renderRows();
+        Sound.init(); Sound.buy();
+      },
+      guestLeft: peer => {
+        const i = this.defs.findIndex(d => d.peer === peer);
+        if (i >= 0) { this.defs.splice(i, 1); if (!Net.inMatch) this.renderRows(); }
+      },
+      note: m => this.toast(m.title, m.sub || '', 2600),
+      waiting: text => this.netWaiting(text),
+      joined: code => {
+        this.$('join-status').textContent = '';
+        this.showJoinLobby({ players: [], rules: '' }, code);
+      },
+      lobby: m => this.showJoinLobby(m),
+      roundStarting: g => {
+        ['setup', 'shop', 'roundover', 'netwait'].forEach(id => this.$(id).classList.add('hidden'));
+        if (document.activeElement) document.activeElement.blur();
+        this.cache = {};
+        const styleName = { gentle: 'Gentle', hilly: 'Hilly', mountains: 'Mountainous', wild: 'Wild' }[g.terrainStyle] || '';
+        this.toast(`Round ${g.round} of ${g.settings.rounds}`, `${g.theme.name} · ${styleName} terrain`, 2200);
+      },
+      toLobby: () => {
+        if (this.$('roundover').classList.contains('hidden') || this.game.state !== 'roundOver') {
+          ['shop', 'roundover', 'netwait'].forEach(id => this.$(id).classList.add('hidden'));
+          this.$('setup').classList.remove('hidden');
+          this.game.preview();
+          this.showJoinLobby(this.lastLobby);
+        }
+      },
+      hostLost: msg => {
+        ['shop', 'roundover', 'netwait'].forEach(id => this.$(id).classList.add('hidden'));
+        this.$('setup').classList.remove('hidden');
+        this.game.preview();
+        this.showJoinForm(msg);
+      },
+    });
+
+    // Invite links: ?join=CODE opens straight to the join tab with the code filled in.
+    const m = /[?&]join=([A-Za-z0-9]{5})/.exec(location.search || '');
+    if (m) { this.setMode('join'); this.$('join-code').value = m[1].toUpperCase(); }
+  },
+
+  setMode(mode) {
+    if (mode === this.mode) return;
+    if ((mode === 'host' || mode === 'join') && !Net.available()) {
+      this.toast('Online play unavailable', 'Could not load the networking library — are you offline?', 3200);
+      return;
+    }
+    if (Net.isHost && Net.conns.size && !confirm('Close the room? Everyone in it will be disconnected.')) return;
+    Net.leave();
+    this.mode = mode;
+    this.$('mode-tabs').querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+    this.$('setup-cols').classList.toggle('hidden', mode === 'join');
+    this.$('start-btn').classList.toggle('hidden', mode === 'join');
+    this.$('host-bar').classList.toggle('hidden', mode !== 'host');
+    this.$('join-panel').classList.toggle('hidden', mode !== 'join');
+    if (mode === 'local') {
+      this.defs = this.localDefs;
+    } else if (mode === 'host') {
+      this.defs = [{ name: loadPref('name', '') || 'Host', type: 'host' }];
+      this.$('room-code').textContent = '·····';
+      this.$('host-status').textContent = 'Opening a room…';
+      Net.host();
+    } else {
+      this.showJoinForm('');
+    }
+    this.renderRows();
+  },
+
+  broadcastLobby() {
+    if (!Net.isHost) return;
+    Net.broadcast({
+      type: 'lobby',
+      players: this.defs.map((d, i) => ({
+        name: d.name.trim() || DEFAULT_NAMES[i],
+        color: PLAYER_COLORS[i],
+        kind: d.type === 'host' ? 'Host' : d.type === 'remote' ? 'Online' : (CPU_TYPES.find(c => c[0] === d.type) || [0, 'CPU'])[1],
+        peer: d.peer || null,
+      })),
+      rules: this.rulesSummary(),
+    });
+  },
+
+  copyInvite() {
+    const code = Net.code;
+    if (!code) return;
+    const web = /^https?:/.test(location.protocol);
+    const text = web ? `${location.origin}${location.pathname}?join=${code}` : code;
+    const done = () => this.toast(web ? 'Invite link copied' : 'Room code copied', text, 2200);
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, done);
+    else done();
+  },
+
+  joinRoom() {
+    const name = this.$('join-name').value.trim() || 'Guest';
+    const code = this.$('join-code').value.trim().toUpperCase();
+    if (code.length !== 5) { this.$('join-status').textContent = 'Room codes are 5 characters.'; return; }
+    savePref('name', name);
+    Sound.init();
+    this.$('join-status').textContent = 'Connecting…';
+    this.$('join-btn').disabled = true;
+    Net.join(code, name);
+  },
+
+  showJoinForm(msg) {
+    this.$('join-form').classList.remove('hidden');
+    this.$('join-lobby').classList.add('hidden');
+    this.$('join-btn').disabled = false;
+    this.$('join-status').textContent = msg || '';
+  },
+
+  showJoinLobby(m, code) {
+    if (!Net.isClient) return;
+    m = m || { players: [], rules: '' };
+    this.lastLobby = m;
+    this.$('join-form').classList.add('hidden');
+    this.$('join-lobby').classList.remove('hidden');
+    this.$('join-btn').disabled = false;
+    this.$('join-room').textContent = code || Net.code || '';
+    this.$('join-players').innerHTML = m.players.map(p =>
+      `<div class="prow lobby-row"><span class="pcolor" style="--c:${p.color}"></span>` +
+      `<span class="lobby-name">${escapeHtml(p.name)}${p.peer === Net.myId ? ' <em>(you)</em>' : ''}</span>` +
+      `<span class="ptag">${escapeHtml(p.kind)}</span></div>`).join('') ||
+      '<p class="join-wait">Joining…</p>';
+    this.$('join-rules').textContent = m.rules || '';
+  },
+
+  netWaiting(text) {
+    const el = this.$('netwait');
+    if (!text) { el.classList.add('hidden'); return; }
+    this.$('netwait-text').textContent = text;
+    el.classList.remove('hidden');
   },
 
   // ------------------------------------------------------------ HUD
@@ -120,7 +331,7 @@ const UI = {
           case 'shield': if (g.humanTurn) g.activateShield(g.current); break;
           case 'mute': this.toggleMute(); break;
           case 'skip': g.skipRound(); break;
-          case 'menu': if (confirm('Quit to the main menu? This match will be lost.')) this.backToMenu(); break;
+          case 'menu': this.quitPrompt(); break;
         }
       });
     });
@@ -176,6 +387,20 @@ const UI = {
 
   commitEdits() {
     if (this.editing && this.editCommit) this.editCommit[this.editing]();
+  },
+
+  quitPrompt() {
+    if (Net.isClient) {
+      if (!confirm('Leave this online match?')) return;
+      Net.leave();
+      ['shop', 'roundover', 'netwait'].forEach(id => this.$(id).classList.add('hidden'));
+      this.$('setup').classList.remove('hidden');
+      this.game.preview();
+      this.showJoinForm('You left the match.');
+      return;
+    }
+    const msg = Net.isHost ? 'End this match for everyone and go back to the lobby?' : 'Quit to the main menu? This match will be lost.';
+    if (confirm(msg)) this.backToMenu();
   },
 
   toggleMute() {
@@ -273,7 +498,7 @@ const UI = {
     this.$('ro-title').textContent = w ? `${w.name} takes the round` : 'Nobody survived';
     this.$('ro-title').style.color = w ? w.color : '';
     this.$('ro-table').innerHTML = this.standingsHTML(game.players);
-    const humans = game.players.some(p => !p.ai);
+    const humans = Net.active || game.players.some(p => !p.ai);
     this.$('ro-next').textContent = last ? 'See final results' : humans ? 'Visit the armory' : 'Next round';
     this.$('roundover').classList.remove('hidden');
     this.onRoundNext = () => {
@@ -292,13 +517,20 @@ const UI = {
     this.$('ro-title').textContent = tie ? "It's a draw!" : `${top.name} wins the war!`;
     this.$('ro-title').style.color = tie ? '' : top.color;
     this.$('ro-table').innerHTML = this.standingsHTML(game.players);
-    this.$('ro-next').textContent = 'New game';
+    this.$('ro-next').textContent = Net.active ? 'Back to the lobby' : 'New game';
     this.$('roundover').classList.remove('hidden');
     Sound.win();
     this.onRoundNext = () => this.backToMenu();
   },
 
   runShop(game, done) {
+    if (Net.active) { // online: everyone shops on their own screen at once
+      if (Net.isHost) game.players.filter(p => p.ai).forEach(p => AI.shop(p));
+      const me = game.players.find(p => p.owner === Net.myId && !p.ai);
+      const finish = () => { this.$('shop').classList.add('hidden'); Net.shopDone(me); };
+      if (me) this.showShopFor(me, game, finish); else finish();
+      return;
+    }
     game.players.filter(p => p.ai).forEach(p => AI.shop(p));
     const humans = game.players.filter(p => !p.ai);
     let i = 0;

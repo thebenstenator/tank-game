@@ -15,6 +15,7 @@ class Tank {
     this.color = def.color;
     this.rgb = hexToRgb(def.color);
     this.ai = def.ai || null;
+    this.owner = def.owner || null; // online: which player's computer controls this tank
     this.money = money;
     this.inventory = {};
     this.wins = 0;
@@ -117,14 +118,27 @@ class Game {
     this.wind = randInt(-15, 15);
   }
 
-  setTheme(theme, terrainStyle) {
-    fitWorldToWindow();
+  /** net (online guests): { W, H, runs, style } from the host instead of generating locally. */
+  setTheme(theme, terrainStyle, net) {
+    if (net) setWorldSize(net.W, net.H); else fitWorldToWindow();
     this.resize();
     this.theme = theme;
     this.terrain = new Terrain(theme);
-    this.terrainStyle = this.terrain.generate(terrainStyle);
+    if (net) {
+      this.terrain.fromRuns(net.runs);
+      this.terrain.markRange(0, W - 1, false);
+      this.terrainStyle = net.style;
+    } else {
+      this.terrainStyle = this.terrain.generate(terrainStyle);
+    }
     this.bg = renderBackground(theme);
     this.initDust();
+  }
+
+  /** Drop any shots still in flight (used when an online guest catches up to the host). */
+  clearShots() {
+    this.projectiles = [];
+    this.timers = [];
   }
 
   clearEffects() {
@@ -203,27 +217,43 @@ class Game {
       this.wind = clamp(this.wind + randInt(-this.windShift, this.windShift), -this.windMax, this.windMax);
     }
     this.turnCount++;
+    this.beginTurn(t);
+    if (Net.isHost) Net.broadcast(Net.snapshot(this));
+  }
+
+  beginTurn(t) {
+    this.current = t;
     this.state = 'aim';
     this.keys = {};
-    this.ai = t.ai ? { timer: 0, plan: null, wait: 0 } : null;
+    this.firePending = false;
+    this.ai = t.ai && !Net.isClient ? { timer: 0, plan: null, wait: 0 } : null;
     if (t.ammo(t.weapon) <= 0) t.weapon = 'baby';
     t.power = Math.min(t.power, t.maxPower);
-    Sound.turn(!t.ai);
-    UI.banner(`${t.name}'s turn${t.ai ? ' · CPU' : ''}`, t.color);
+    const mine = this.isLocal(t);
+    Sound.turn(mine);
+    UI.banner(mine && Net.active ? 'Your turn' : `${t.name}'s turn${t.ai ? ' · CPU' : ''}`, t.color);
   }
 
   endTurn() {
+    // Online guests don't decide what happens next: wait for the host's word.
+    if (Net.isClient) { this.state = 'netwait'; return; }
     const alive = this.players.filter(p => p.alive);
     if (alive.length <= 1) { this.finishRound(alive[0] || null); return; }
     this.nextTurn();
   }
 
-  finishRound(winner) {
+  /** stats (online guests): the host's money/wins/kills for every tank. */
+  finishRound(winner, stats) {
     this.state = 'roundEnding';
     this.endTimer = 2.0;
     this.roundWinner = winner;
-    this.players.forEach(p => { p.money += 1000; });
-    if (winner) { winner.wins++; winner.money += 5000; }
+    if (stats) {
+      stats.forEach((s, i) => Object.assign(this.players[i], s));
+    } else {
+      this.players.forEach(p => { p.money += 1000; });
+      if (winner) { winner.wins++; winner.money += 5000; }
+    }
+    if (Net.isHost) Net.roundEnded(this);
     UI.toast(winner ? `${winner.name} wins the round` : 'Total annihilation',
       winner ? '+$5,000 victory bonus' : 'No survivors', 2000);
     Sound.win();
@@ -231,7 +261,7 @@ class Game {
 
   /** True when every human is out of the round (or there are none) and it's still being fought. */
   get canSkip() {
-    return !this.skipping && (this.state === 'aim' || this.state === 'resolve') &&
+    return !Net.active && !this.skipping && (this.state === 'aim' || this.state === 'resolve') &&
       this.players.length > 0 && !this.players.some(p => !p.ai && p.alive);
   }
 
@@ -266,7 +296,10 @@ class Game {
     Sound.setSilent(false);
   }
 
-  get humanTurn() { return this.state === 'aim' && this.current && !this.current.ai; }
+  /** Is this tank controlled from this computer's keyboard? */
+  isLocal(t) { return !!t && !t.ai && (!Net.active || t.owner === Net.myId); }
+
+  get humanTurn() { return this.state === 'aim' && this.isLocal(this.current) && !this.firePending; }
 
   cycleWeapon(dir) {
     if (!this.humanTurn) return;
@@ -280,9 +313,11 @@ class Game {
     t.power = clamp(Math.round(t.power + d), 0, t.maxPower);
   }
 
-  activateShield(t) {
+  activateShield(t, fromNet) {
     if (this.state !== 'aim' || t !== this.current) return;
     if ((t.inventory.shield || 0) <= 0 || t.shield > 0) return;
+    if (Net.isClient && !fromNet) { Net.send({ type: 'shield' }); return; }
+    if (Net.isHost) Net.broadcast({ type: 'shield', i: t.index });
     t.inventory.shield--;
     t.shield = 100;
     Sound.shield(t.x);
@@ -292,9 +327,20 @@ class Game {
     }
   }
 
-  fire() {
+  fire(fromNet) {
     if (this.state !== 'aim') return;
     const t = this.current;
+    if (Net.isClient && !fromNet) { // ask the host; the shot plays when it echoes back
+      if (!this.isLocal(t) || this.firePending) return;
+      this.firePending = true;
+      Net.send({ type: 'fire', angle: t.angle, power: t.power, weapon: t.weapon });
+      return;
+    }
+    if (Net.isHost) {
+      const seed = randInt(1, 2147483646);
+      seedSim(seed);
+      Net.broadcast({ type: 'shot', i: t.index, angle: t.angle, power: t.power, weapon: t.weapon, seed });
+    }
     let wid = t.weapon;
     if (t.ammo(wid) <= 0) wid = 'baby';
     if (wid !== 'baby') t.inventory[wid]--;
@@ -354,7 +400,7 @@ class Game {
       this.settle(dt);
       this.endTimer -= dt;
       if (this.endTimer <= 0) { this.state = 'roundOver'; UI.showRoundOver(this); }
-    } else if (this.state === 'roundOver') this.settle(dt);
+    } else if (this.state === 'roundOver' || this.state === 'netwait') this.settle(dt);
 
     this.updateEffects(dt);
     this.terrain.flush();
@@ -371,7 +417,8 @@ class Game {
 
   updateAim(dt) {
     const t = this.current;
-    if (t.ai) { this.updateAI(dt); return; }
+    if (t.ai) { if (this.ai) this.updateAI(dt); return; }
+    if (!this.isLocal(t)) return;
     const fine = this.fine;
     const adj = (code, tap, rate, prop, sign) => {
       const h = this.heldState(code, dt);
@@ -525,7 +572,7 @@ class Game {
     if (b === 'funky') {
       Sound.pop(hit.x);
       for (let i = 0; i < w.count; i++) {
-        const q = this.makeProjectile(hit.x, hit.y - 4, rand(-260, 260), rand(-480, -220), w, p.owner, 'bomblet');
+        const q = this.makeProjectile(hit.x, hit.y - 4, srand(-260, 260), srand(-480, -220), w, p.owner, 'bomblet');
         q.radius = 26; q.damage = 32; q.cleared = true;
         q.hue = (i * 360 / w.count) | 0;
         q.ignoreTank = hit.tank || null; q.ignoreT = hit.tank ? 0.25 : 0;
@@ -674,7 +721,7 @@ class Game {
     // Collateral damage from the death blast is credited to whoever caused it.
     const by = k || t;
     const x = t.x, y = t.y - 6;
-    const fx = weightedPick(DEATH_EFFECTS);
+    const fx = weightedPick(DEATH_EFFECTS, simRandom);
     this.floaters.push({ x, y: t.y - 44, text: fx.label, rgb: [255, 255, 255], t: 0, dur: 1.8, size: fx.id === 'meltdown' ? 18 : 14 });
 
     switch (fx.id) {
@@ -699,8 +746,8 @@ class Game {
       case 'shrapnel': // explodes and throws burning fragments that blow up where they land
         this.explode(x, y, 26, 30, by);
         this.tankSparks(t, 30);
-        for (let i = 0, n = randInt(7, 10); i < n; i++) {
-          const a = -Math.PI / 2 + rand(-1.25, 1.25), s = rand(110, 440);
+        for (let i = 0, n = srandInt(7, 10); i < n; i++) {
+          const a = -Math.PI / 2 + srand(-1.25, 1.25), s = srand(110, 440);
           const q = this.makeProjectile(x, y - 6, Math.cos(a) * s, Math.sin(a) * s, SHRAPNEL, by, 'bomblet');
           q.cleared = true;
           this.projectiles.push(q);
@@ -710,9 +757,10 @@ class Game {
       case 'cookoff': { // stored ammo goes off in a rapid chain, then one last big blast
         this.explode(x, y, 14, 10, by);
         let tt = 0;
-        for (let i = 0, n = randInt(4, 6); i < n; i++) {
-          tt += rand(0.13, 0.24);
-          this.schedule(tt, () => this.explode(x + rand(-30, 30), y + rand(-16, 6), rand(16, 28), rand(18, 28), by));
+        for (let i = 0, n = srandInt(4, 6); i < n; i++) {
+          tt += srand(0.13, 0.24);
+          const bx = x + srand(-30, 30), byy = y + srand(-16, 6), br = srand(16, 28), bd = srand(18, 28);
+          this.schedule(tt, () => this.explode(bx, byy, br, bd, by));
         }
         this.schedule(tt + 0.3, () => { this.explode(x, y, 50, 55, by); this.tankSparks(t, 40); });
         break;
