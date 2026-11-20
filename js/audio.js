@@ -4,7 +4,7 @@
  * Synthesized sound via WebAudio — no asset files needed.
  *
  * One-shots (booms, shots, clanks…) are fire-and-forget node graphs.
- * Continuous sounds (shell whistles, wind, turret servo, settling dirt) are
+ * Continuous sounds (shell air rush, wind, turret servo, settling dirt) are
  * persistent nodes driven every frame from Sound.update(game, dt).
  * Everything is panned by world x and can send to a shared reverb.
  */
@@ -16,7 +16,7 @@ const Sound = {
   muted: false,
   volume: 0.55,
 
-  voices: [],     // active projectile whistles
+  voices: [],     // active projectile air-rush voices
   amb: null,      // wind ambience
   servo: null,    // turret / power adjust whir
   rumble: null,   // dirt settling
@@ -51,7 +51,7 @@ const Sound = {
     this.verbIn.connect(verb);
     verb.connect(this.master);
 
-    // Don't leave a whistle or the wind droning while the tab is hidden.
+    // Don't leave shells or the wind droning while the tab is hidden.
     document.addEventListener('visibilitychange', () => {
       if (!this.ctx) return;
       if (document.hidden) this.ctx.suspend(); else this.ctx.resume();
@@ -316,7 +316,11 @@ const Sound = {
     if (a.pan) this.ramp(a.pan.pan, Math.sign(game.wind) * 0.35, 0.5);
   },
 
-  /** Each shell in the air gets a whistle that drops in pitch as it falls. */
+  /**
+   * Each shell in the air gets a soft rush of air: filtered noise that brightens
+   * with speed (so it darkens at the top of the arc) with a faint tumbling flutter.
+   * No pitched tone, so it stays in the background.
+   */
   updateFlight(game) {
     const live = game.projectiles;
     const now = this.ctx.currentTime;
@@ -326,7 +330,7 @@ const Sound = {
       return false;
     });
     for (const p of live) {
-      if (this.voices.length >= 4) break;
+      if (this.voices.length >= 3) break;
       if (!this.voices.some(v => v.p === p)) this.voices.push(this.makeVoice(p));
     }
     const share = 1 / Math.sqrt(this.voices.length || 1);
@@ -335,54 +339,43 @@ const Sound = {
 
   makeVoice(p) {
     const c = this.ctx;
-    const o = c.createOscillator();
-    o.type = 'sine';
+    const air = this.loopNoise('lowpass', 400, 0.5);
+    // Flutter: gently wobble the level, like a shell tumbling through the air.
+    const flutter = c.createGain();
+    flutter.gain.value = 1;
     const lfo = c.createOscillator();
-    lfo.frequency.value = rand(5, 8);
-    const lg = c.createGain();
-    lg.gain.value = 12;
-    lfo.connect(lg); lg.connect(o.frequency);
-    const og = c.createGain();
-    og.gain.value = 0;
-    o.connect(og);
-    const air = this.loopNoise('bandpass', 800, 1.2);
-    const mix = c.createGain();
-    og.connect(mix); air.g.connect(mix);
-    const pan = this.out(mix, this.panX(p.x), 0.12);
-    o.start(); lfo.start();
-    // Heavier warheads whistle lower; bomblets and shrapnel higher and quieter.
-    let m = clamp(1.2 - p.radius / 150, 0.55, 1.1);
-    if (p.kind === 'bomblet') m *= 1.2;
-    return { p, o, lfo, og, air, pan, m, vol: p.kind === 'bomblet' ? 0.55 : 1 };
+    lfo.frequency.value = rand(9, 14);
+    const depth = c.createGain();
+    depth.gain.value = 0.18;
+    lfo.connect(depth); depth.connect(flutter.gain);
+    air.g.connect(flutter);
+    const pan = this.out(flutter, this.panX(p.x), 0.1);
+    lfo.start();
+    // Heavier warheads sound darker; bomblets and shrapnel lighter and quieter.
+    let m = clamp(1.25 - p.radius / 120, 0.4, 1.1);
+    if (p.kind === 'bomblet') m *= 1.3;
+    return { p, air, lfo, depth, pan, m, vol: p.kind === 'bomblet' ? 0.5 : 1 };
   },
 
   driveVoice(v, share) {
-    const p = v.p, T = 0.04;
+    const p = v.p, T = 0.05;
     if (p.kind === 'roll') { // grinding rumble along the ground
-      this.ramp(v.og.gain, 0, T);
-      this.ramp(v.air.f.frequency, 120 + (p.rollSpeed || 80) * 1.5, T);
-      this.ramp(v.air.f.Q, 0.7, T);
-      this.ramp(v.air.g.gain, 0.3 * share, T);
+      this.ramp(v.depth.gain, 0.05, T);
+      this.ramp(v.air.f.frequency, 110 + (p.rollSpeed || 80) * 1.3, T);
+      this.ramp(v.air.g.gain, 0.22 * share, T);
     } else {
-      const sp = Math.hypot(p.vx, p.vy);
-      const fall = clamp(p.vy / 650, 0, 1);
-      // Pitch peaks at the top of the arc: it climbs as the shell slows on the way up,
-      // then drops as it speeds back down.
-      this.ramp(v.o.frequency, clamp(1900 - Math.abs(p.vy) * 1.6, 380, 2300) * v.m, T);
-      this.ramp(v.og.gain, (0.035 + 0.045 * fall * fall) * v.vol * share, T);
-      this.ramp(v.air.f.Q, 1.2, T);
-      this.ramp(v.air.f.frequency, 300 + sp * 1.4, T);
-      this.ramp(v.air.g.gain, clamp(sp / 900, 0, 1) * 0.09 * v.vol * share, T);
+      const k = clamp(Math.hypot(p.vx, p.vy) / 800, 0, 1);
+      this.ramp(v.depth.gain, 0.18, T);
+      this.ramp(v.air.f.frequency, (220 + k * 1300) * v.m, T);
+      this.ramp(v.air.g.gain, (0.025 + 0.06 * k) * v.vol * share, T);
     }
     if (v.pan) this.ramp(v.pan.pan, this.panX(p.x), T);
   },
 
   releaseVoice(v, now) {
-    v.og.gain.setTargetAtTime(0, now, 0.02);
-    v.air.g.gain.setTargetAtTime(0, now, 0.02);
-    v.o.stop(now + 0.25);
-    v.lfo.stop(now + 0.25);
-    v.air.s.stop(now + 0.25);
+    v.air.g.gain.setTargetAtTime(0, now, 0.03);
+    v.air.s.stop(now + 0.3);
+    v.lfo.stop(now + 0.3);
   },
 
   /** Whir while the turret swings, plus a rising tone while power changes. */
