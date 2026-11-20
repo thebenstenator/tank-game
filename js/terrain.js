@@ -46,7 +46,7 @@ class Terrain {
     if (style === 'random') style = pick(['gentle', 'hilly', 'mountains', 'wild', 'wild']);
     const hts = Terrain.heightmap(style);
     for (let x = 0; x < W; x++) {
-      const top = Math.round(clamp(hts[x], H * 0.15, H * 0.95));
+      const top = Math.round(clamp(hts[x], H * 0.12, H * 0.96));
       for (let y = top; y < H; y++) this.mask[y * W + x] = 1;
     }
     for (let x = 0; x < W; x++) this.recolorColumn(x);
@@ -54,51 +54,60 @@ class Terrain {
     return style;
   }
 
-  /** Surface y for every column. Larger y = lower ground. */
+  /**
+   * Surface y for every column. Larger y = lower ground.
+   * Styles favour a few big features with smooth ground between them,
+   * rather than lots of small bumps.
+   */
   static heightmap(style) {
     const hts = new Float32Array(W);
     if (style === 'gentle') {
-      const n = fractalNoise1D(W, [[rand(500, 750), rand(50, 80)], [rand(200, 300), rand(18, 30)], [70, 6], [20, 1.5]]);
-      const base = H * rand(0.6, 0.68);
+      const n = fractalNoise1D(W, [[rand(550, 800), rand(70, 110)], [rand(220, 320), rand(16, 28)], [90, 2.5]]);
+      const base = H * rand(0.58, 0.66);
       for (let x = 0; x < W; x++) hts[x] = base + n[x];
     } else if (style === 'hilly') {
-      const rough = rand(0.7, 1.35);
-      const n = fractalNoise1D(W, [[rand(420, 680), rand(110, 170)], [rand(170, 260), rand(40, 80) * rough], [rand(60, 90), 18 * rough], [24, 6 * rough], [9, 1.6]]);
-      const base = H * rand(0.52, 0.62);
+      const n = fractalNoise1D(W, [[rand(450, 700), rand(160, 230)], [rand(180, 260), rand(45, 80)], [rand(85, 110), 6]]);
+      const base = H * rand(0.5, 0.6);
       for (let x = 0; x < W; x++) hts[x] = base + n[x];
     } else if (style === 'mountains') {
-      // Ridged noise: sharp peaks where the noise crosses zero
-      const n = fractalNoise1D(W, [[rand(280, 460), 1], [rand(110, 180), 0.45], [rand(40, 60), 0.15], [14, 0.04]]);
+      // Ridged noise: sharp peaks where the noise crosses zero, smooth slopes between
+      const n = fractalNoise1D(W, [[rand(300, 480), 1], [rand(120, 190), 0.3], [rand(55, 75), 0.04]]);
       let m = 0;
       for (let x = 0; x < W; x++) m = Math.max(m, Math.abs(n[x]));
-      const amp = H * rand(0.6, 0.75);
+      const amp = H * rand(0.7, 0.82);
       for (let x = 0; x < W; x++) {
         const v = 1 - Math.abs(n[x]) / m;
-        hts[x] = H * 0.92 - Math.pow(v, 1.6) * amp;
+        hts[x] = H * 0.94 - Math.pow(v, 1.7) * amp;
       }
     } else {
-      // Wild: midpoint displacement — jagged, unpredictable, stretched to fill the screen
-      const N = 2048;
+      // Wild: midpoint displacement for an unpredictable skyline, stopped at coarse
+      // detail and joined with smooth curves, then stretched so peaks reach near the
+      // ceiling and valleys near the floor.
+      const N = 32;
       const pts = new Float32Array(N + 1);
       pts[0] = rand(-1, 1);
       pts[N] = rand(-1, 1);
-      const roughness = rand(0.52, 0.68);
+      const roughness = rand(0.55, 0.68);
       let disp = 1;
       for (let step = N; step > 1; step >>= 1) {
         const half = step >> 1;
         for (let i = half; i < N; i += step) pts[i] = (pts[i - half] + pts[i + half]) / 2 + rand(-disp, disp);
         disp *= roughness;
       }
-      // Light smoothing so single-pixel spikes don't look like noise
-      const sm = new Float32Array(N + 1);
-      for (let i = 0; i <= N; i++) sm[i] = (pts[Math.max(0, i - 2)] + pts[Math.max(0, i - 1)] + pts[i] + pts[Math.min(N, i + 1)] + pts[Math.min(N, i + 2)]) / 5;
       let lo = Infinity, hi = -Infinity;
-      for (let i = 0; i <= N; i++) { lo = Math.min(lo, sm[i]); hi = Math.max(hi, sm[i]); }
-      const yTop = H * rand(0.15, 0.3), yBot = H * rand(0.84, 0.95);
-      for (let x = 0; x < W; x++) {
-        const u = x * N / (W - 1), i = Math.min(N - 1, Math.floor(u)), f = u - i;
-        const v = (sm[i] * (1 - f) + sm[i + 1] * f - lo) / (hi - lo || 1);
-        hts[x] = yBot - v * (yBot - yTop);
+      for (const v of pts) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
+      // Normalise to 0..1, then push values away from the middle: taller peaks, deeper pits.
+      for (let i = 0; i <= N; i++) {
+        const v = (pts[i] - lo) / (hi - lo || 1) * 2 - 1;
+        pts[i] = (Math.sign(v) * Math.pow(Math.abs(v), 0.75) + 1) / 2;
+      }
+      const yTop = H * rand(0.12, 0.2), yBot = H * rand(0.88, 0.95);
+      const P = i => pts[clamp(i, 0, N)];
+      for (let x = 0; x < W; x++) { // Catmull-Rom spline through the control points
+        const u = x * N / (W - 1), i = Math.min(N - 1, Math.floor(u)), t = u - i;
+        const p0 = P(i - 1), p1 = P(i), p2 = P(i + 1), p3 = P(i + 2);
+        const v = 0.5 * (2 * p1 + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t + (-p0 + 3 * p1 - 3 * p2 + p3) * t * t * t);
+        hts[x] = yBot - clamp(v, -0.05, 1.05) * (yBot - yTop);
       }
     }
     return hts;

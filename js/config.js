@@ -8,11 +8,11 @@ function fitWorldToWindow() {
   const aspect = clamp(window.innerWidth / Math.max(1, window.innerHeight), 1.3, 2.4);
   H = WORLD_H;
   W = Math.round(H * aspect);
-  // Full power on flat ground with no wind carries ~1.35 field widths, whatever the window shape.
+  // Full power on flat ground with no wind carries ~1.6 field widths, whatever the window shape.
   MUZZLE_MAX = Math.sqrt(RANGE_FACTOR * W * GRAVITY);
 }
 const GRAVITY = 260;        // px/s²
-const RANGE_FACTOR = 1.35;
+const RANGE_FACTOR = 1.6;
 let MUZZLE_MAX = 720;       // muzzle speed (px/s) at power 1000; set by fitWorldToWindow
 /** Range grows linearly with power: power 500 reaches about half as far as 1000. */
 function muzzleSpeed(power) { return MUZZLE_MAX * Math.sqrt(Math.max(0, power) / 1000); }

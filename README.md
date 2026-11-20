@@ -25,7 +25,7 @@ The HUD buttons do the same thing with the mouse.
 ## Rules
 
 - 2–6 tanks, any mix of humans (hot-seat) and CPUs (Easy / Normal / Hard).
-- Range scales with power (500 goes about half as far as 1000), and full power carries a bit past the width of the field.
+- Range scales with power (500 goes about half as far as 1000), and full power carries about 1.6 field widths on flat ground.
 - Damage lowers max power (500 + health × 5), so wounded tanks shoot shorter but can still fight back.
 - Terrain is destructible and loose dirt falls. Tanks that fall take damage unless they have a parachute.
 - Wind is a setting: None, Light (up to 15), Moderate (30, default), Strong (50) or Gale (75). Around 20 you have to aim for it; 60+ is chaos. It can drift between turns.
