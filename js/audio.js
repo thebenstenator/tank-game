@@ -51,6 +51,26 @@ const Sound = {
     this.verbIn.connect(verb);
     verb.connect(this.master);
 
+    // Low-end bus for explosion weight: soft-clipped so the sub-bass feels big and
+    // still comes through on laptop speakers, with a little reverb on the tail.
+    const shaper = c.createWaveShaper();
+    const curve = new Float32Array(1024);
+    for (let i = 0; i < curve.length; i++) {
+      const x = i / (curve.length - 1) * 2 - 1;
+      curve[i] = Math.tanh(x * 2.2) / Math.tanh(2.2);
+    }
+    shaper.curve = curve;
+    shaper.oversample = '2x';
+    this.lowBus = c.createGain();
+    this.lowBus.gain.value = 0.9;
+    const lowOut = c.createBiquadFilter(); // keep the grit out of the highs
+    lowOut.type = 'lowpass';
+    lowOut.frequency.value = 900;
+    this.lowBus.connect(shaper); shaper.connect(lowOut); lowOut.connect(this.master);
+    const lowVerb = c.createGain();
+    lowVerb.gain.value = 0.3;
+    lowOut.connect(lowVerb); lowVerb.connect(this.verbIn);
+
     // Don't leave shells or the wind droning while the tab is hidden.
     document.addEventListener('visibilitychange', () => {
       if (!this.ctx) return;
@@ -101,7 +121,7 @@ const Sound = {
 
   ramp(param, v, T = 0.04) { param.setTargetAtTime(v, this.ctx.currentTime, T); },
 
-  noiseBurst({ dur, filter = 'lowpass', f0, f1, q = 0.7, vol, delay = 0, pan = 0, wet = 0.12 }) {
+  noiseBurst({ dur, filter = 'lowpass', f0, f1, q = 0.7, vol, delay = 0, pan = 0, wet = 0.12, bus = null }) {
     const c = this.ctx, t = c.currentTime + delay;
     const s = c.createBufferSource();
     s.buffer = this.noise;
@@ -116,12 +136,12 @@ const Sound = {
     g.gain.exponentialRampToValueAtTime(vol, t + Math.min(0.012, dur * 0.3));
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     s.connect(f); f.connect(g);
-    this.out(g, pan, wet);
+    if (bus) g.connect(bus); else this.out(g, pan, wet);
     s.start(t, Math.random() * 1.5);
     s.stop(t + dur + 0.05);
   },
 
-  tone({ type = 'sine', f0, f1 = f0, dur, vol, delay = 0, pan = 0, wet = 0.1 }) {
+  tone({ type = 'sine', f0, f1 = f0, dur, vol, delay = 0, pan = 0, wet = 0.1, bus = null }) {
     const c = this.ctx, t = c.currentTime + delay;
     const o = c.createOscillator();
     o.type = type;
@@ -132,7 +152,7 @@ const Sound = {
     g.gain.exponentialRampToValueAtTime(vol, t + 0.01);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     o.connect(g);
-    this.out(g, pan, wet);
+    if (bus) g.connect(bus); else this.out(g, pan, wet);
     o.start(t);
     o.stop(t + dur + 0.05);
   },
@@ -161,6 +181,7 @@ const Sound = {
     this.noiseBurst({ dur: 0.5 + s * 1.6, f0: 900 + s * 1800, f1: 45, vol: 0.5 + s * 0.5, pan, wet });
     this.tone({ f0: 120, f1: 28, dur: 0.4 + s * 0.9, vol: 0.5 + s * 0.6, pan, wet: wet * 0.5 });
     this.noiseBurst({ dur: 0.07, filter: 'highpass', f0: 3200, f1: 1600, vol: 0.2 + s * 0.2, pan, wet }); // crack
+    this.weight(s);
     if (s > 0.5) { // long rolling thunder for the big ones
       this.noiseBurst({ dur: 2.4 + s * 2.2, f0: 320, f1: 30, vol: 0.3 * s, delay: 0.12, pan: pan * 0.5, wet: 0.7 });
     }
@@ -178,12 +199,22 @@ const Sound = {
     }
   },
 
+  /** The deep layers under every explosion: kick punch, sub drop, rumble, and a pressure swell on big ones. */
+  weight(s, delay = 0) {
+    const bus = this.lowBus;
+    this.tone({ type: 'triangle', f0: 170, f1: 45, dur: 0.16 + s * 0.14, vol: 0.45 + s * 0.3, delay, bus });  // punch
+    this.tone({ f0: 75 + s * 15, f1: 24, dur: 0.55 + s * 1.7, vol: 0.5 + s * 0.45, delay, bus });            // sub drop
+    this.noiseBurst({ dur: 0.9 + s * 2.6, f0: 280 + s * 220, f1: 32, q: 1.1, vol: 0.4 + s * 0.5, delay, bus }); // rumble
+    if (s > 0.35) this.tone({ f0: 46, f1: 21, dur: 1.4 + s * 2.2, vol: 0.4 * s, delay: delay + 0.09, bus }); // pressure swell
+  },
+
   fire(size = 0.2, x) {
     if (!this.ok()) return;
     const s = clamp(size, 0, 1), pan = this.panX(x);
     this.noiseBurst({ dur: 0.35 + s * 0.4, filter: 'bandpass', f0: 1800, f1: 300 - s * 150, q: 1, vol: 0.35 + s * 0.2, pan, wet: 0.3 });
     this.tone({ type: 'triangle', f0: 220 - s * 110, f1: 50, dur: 0.25 + s * 0.35, vol: 0.3 + s * 0.25, pan, wet: 0.2 });
     this.noiseBurst({ dur: 0.05, filter: 'highpass', f0: 2600, f1: 2000, vol: 0.2, pan, wet: 0.25 });
+    this.tone({ type: 'triangle', f0: 140, f1: 40, dur: 0.18 + s * 0.2, vol: 0.3 + s * 0.3, bus: this.lowBus }); // recoil thump
   },
 
   pop(x) {
@@ -193,7 +224,11 @@ const Sound = {
     this.noiseBurst({ dur: 0.1, filter: 'bandpass', f0: 2500, f1: 900, q: 1.5, vol: 0.15, pan });
   },
 
-  thud(x) { if (this.ok()) this.noiseBurst({ dur: 0.35, f0: 500, f1: 70, vol: 0.5, pan: this.panX(x), wet: 0.2 }); },
+  thud(x) {
+    if (!this.ok()) return;
+    this.noiseBurst({ dur: 0.35, f0: 500, f1: 70, vol: 0.5, pan: this.panX(x), wet: 0.2 });
+    this.noiseBurst({ dur: 0.6, f0: 180, f1: 35, vol: 0.4, bus: this.lowBus });
+  },
 
   click() { if (this.ok()) this.tone({ type: 'square', f0: 900, dur: 0.03, vol: 0.04, wet: 0 }); },
 
@@ -308,10 +343,12 @@ const Sound = {
     if (a.tNext <= 0) { a.target = Math.random(); a.tNext = rand(0.7, 3); }
     a.gust += (a.target - a.gust) * Math.min(1, dt * 1.3);
     const g = a.gust;
-    this.ramp(a.low.g.gain, (0.012 + k * 0.2) * (0.45 + 0.8 * g), 0.15);
+    // Duck the wind a little while shells are flying so you can hear them travel.
+    const duck = this.voices.length ? 0.55 : 1;
+    this.ramp(a.low.g.gain, (0.012 + k * 0.2) * (0.45 + 0.8 * g) * duck, 0.15);
     this.ramp(a.low.f.frequency, 220 + k * 500 + g * 500, 0.2);
     const gale = Math.max(0, k - 0.3) / 0.7;
-    this.ramp(a.howl.g.gain, gale * 0.06 * (0.15 + g), 0.25);
+    this.ramp(a.howl.g.gain, gale * 0.06 * (0.15 + g) * duck, 0.25);
     this.ramp(a.howl.f.frequency, 650 + g * 800 + k * 300, 0.3);
     if (a.pan) this.ramp(a.pan.pan, Math.sign(game.wind) * 0.35, 0.5);
   },
@@ -367,7 +404,7 @@ const Sound = {
       const k = clamp(Math.hypot(p.vx, p.vy) / 800, 0, 1);
       this.ramp(v.depth.gain, 0.18, T);
       this.ramp(v.air.f.frequency, (220 + k * 1300) * v.m, T);
-      this.ramp(v.air.g.gain, (0.025 + 0.06 * k) * v.vol * share, T);
+      this.ramp(v.air.g.gain, (0.05 + 0.12 * k) * v.vol * share, T);
     }
     if (v.pan) this.ramp(v.pan.pan, this.panX(p.x), T);
   },
