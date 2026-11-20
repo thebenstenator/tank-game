@@ -14,6 +14,7 @@
     if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
     game.fine = e.shiftKey;
     if (e.code === 'KeyM') { UI.toggleMute(); return; }
+    if (e.code === 'KeyF') { UI.toggleFullscreen(); return; }
 
     const human = game.humanTurn;
     if (HOLD_KEYS.has(e.code)) {

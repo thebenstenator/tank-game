@@ -40,6 +40,29 @@ const UI = {
     this.bindEdit('hud-angle', 'angle');
     this.bindEdit('hud-power', 'power');
     this.bindOnline();
+    this.$('setup-fs').onclick = () => this.toggleFullscreen();
+    const onFs = () => {
+      const on = !!(document.fullscreenElement || document.webkitFullscreenElement);
+      this.$('setup-fs').textContent = on ? '⛶ Exit full screen' : '⛶ Full screen';
+      this.$('hud-fs').title = on ? 'Exit full screen (F)' : 'Full screen (F)';
+      // On the menu, rebuild the backdrop so it fills the new screen shape. Mid-round the
+      // battlefield keeps its size (letterboxed) and refits at the start of the next round.
+      if (this.game.state === 'setup') setTimeout(() => this.game.preview(), 50);
+    };
+    document.addEventListener('fullscreenchange', onFs);
+    document.addEventListener('webkitfullscreenchange', onFs);
+  },
+
+  toggleFullscreen() {
+    const d = document, el = d.documentElement;
+    if (d.fullscreenElement || d.webkitFullscreenElement) {
+      (d.exitFullscreen || d.webkitExitFullscreen).call(d);
+    } else {
+      const req = el.requestFullscreen || el.webkitRequestFullscreen;
+      if (!req) { this.toast('Full screen unavailable', 'This browser does not support it', 2000); return; }
+      const p = req.call(el);
+      if (p && p.catch) p.catch(() => this.toast('Full screen was blocked', 'Try the button again', 2000));
+    }
   },
 
   // ------------------------------------------------------------ setup
@@ -330,6 +353,7 @@ const UI = {
           case 'fire': if (g.humanTurn) g.fire(); break;
           case 'shield': if (g.humanTurn) g.activateShield(g.current); break;
           case 'mute': this.toggleMute(); break;
+          case 'fullscreen': this.toggleFullscreen(); break;
           case 'skip': g.skipRound(); break;
           case 'menu': this.quitPrompt(); break;
         }

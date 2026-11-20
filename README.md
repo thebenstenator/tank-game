@@ -33,6 +33,7 @@ Things to know:
 | Tab / Q / E | Cycle weapon |
 | S | Raise shield |
 | Space / Enter | Fire |
+| F | Full screen on/off |
 | M | Mute |
 
 The HUD along the bottom has buttons for all of these. Once every human is knocked out of a round, a **Skip to end** button fast-forwards the CPUs to the result.
