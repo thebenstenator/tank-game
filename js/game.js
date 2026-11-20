@@ -289,7 +289,7 @@ class Game {
     return {
       x, y, vx, vy, w, owner, kind,
       age: 0, trail: [], dead: false, cleared: false,
-      radius: w.radius, damage: w.damage, bounces: w.bounces || 0,
+      radius: w.radius, damage: w.damage, core: w.core || 0, bounces: w.bounces || 0,
       ignoreTank: null, ignoreT: 0, hue: null, smokeT: 0, rec: 0,
     };
   }
@@ -482,7 +482,7 @@ class Game {
 
     if (b === 'dirt') { this.dirtBlast(hit.x, hit.y, p.radius); return; }
 
-    this.explode(hit.x, hit.y, p.radius, p.damage, p.owner);
+    this.explode(hit.x, hit.y, p.radius, p.damage, p.owner, { core: p.core });
 
     if (b === 'funky') {
       Sound.pop(hit.x);
@@ -525,7 +525,7 @@ class Game {
     if (nx < 0 || nx >= W) { p.dead = true; return; }
     const ground = p.y + 3;
     const sy = this.terrain.surfaceY(Math.round(nx));
-    const boom = () => { p.dead = true; this.explode(p.x, p.y, p.radius, p.damage, p.owner); };
+    const boom = () => { p.dead = true; this.explode(p.x, p.y, p.radius, p.damage, p.owner, { core: p.core }); };
 
     for (const t of this.players) {
       if (t.hitTest(nx, p.y - 2) && (p.cleared || t !== p.owner)) { p.x = nx; boom(); return; }
@@ -554,7 +554,10 @@ class Game {
       const d = Math.hypot(t.x - x, (t.y - 7) - y);
       const reach = radius + 14;
       if (d >= reach) continue;
-      const f = clamp(1 - Math.max(0, d - 8) / reach, 0, 1);
+      const core = opts.core || 0;
+      const f = core
+        ? (d <= core ? 1 : clamp(1 - (d - core) / (reach - core), 0, 1))
+        : clamp(1 - Math.max(0, d - 8) / reach, 0, 1);
       this.damageTank(t, damage * f, owner);
     }
 

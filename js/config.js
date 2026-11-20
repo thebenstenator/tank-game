@@ -35,11 +35,13 @@ const PLAYER_COLORS = ['#ff5d5d', '#4cb3ff', '#7ee06a', '#ffc94a', '#c084fc', '#
 const DEFAULT_NAMES = ['Red', 'Blue', 'Green', 'Gold', 'Violet', 'Rose'];
 
 // price = cost of one bundle; bundle = how many you get.
+// core (optional) = kill zone: full damage if the blast lands within this many px of a
+// tank's centre, then falling off to nothing at radius + 14. Without it, damage falls off from 8px.
 const WEAPONS = {
-  baby:     { name: 'Baby Missile', price: 0,    bundle: 0, radius: 20,  damage: 38,  color: '#ffe08a', ai: 1,  desc: 'Free and unlimited. Small, but honest.' },
-  missile:  { name: 'Missile',      price: 1500, bundle: 5, radius: 32,  damage: 58,  color: '#ffb14a', ai: 3,  desc: 'A solid all-rounder with a bigger blast.' },
-  babynuke: { name: 'Baby Nuke',    price: 4000, bundle: 2, radius: 58,  damage: 85,  color: '#ff7a3d', ai: 6,  desc: 'Leaves a crater worth remembering.' },
-  nuke:     { name: 'Nuke',         price: 9000, bundle: 1, radius: 105, damage: 115, color: '#ff4d6d', ai: 10, desc: 'Rearranges the landscape. And your enemies.' },
+  baby:     { name: 'Baby Missile', price: 0,    bundle: 0, radius: 20,  damage: 51,  color: '#ffe08a', ai: 1,  desc: 'Free and unlimited. Small, but honest.' },
+  missile:  { name: 'Missile',      price: 1500, bundle: 5, radius: 40,  damage: 66,  color: '#ffb14a', ai: 3,  desc: 'A solid all-rounder with a bigger blast.' },
+  babynuke: { name: 'Baby Nuke',    price: 4000, bundle: 2, radius: 66,  damage: 110, core: 42, color: '#ff7a3d', ai: 6,  desc: 'Lethal within a tank-width of the target. Leaves a crater worth remembering.' },
+  nuke:     { name: 'Nuke',         price: 9000, bundle: 1, radius: 105, damage: 130, core: 62, color: '#ff4d6d', ai: 10, desc: 'Lethal across a wide zone. Rearranges the landscape — and your enemies.' },
   mirv:     { name: 'MIRV',         price: 6000, bundle: 2, radius: 30,  damage: 50,  color: '#7cd3ff', ai: 7,  behavior: 'mirv', count: 5, desc: 'Splits into five warheads at the top of its arc.' },
   funky:    { name: 'Funky Bomb',   price: 5000, bundle: 2, radius: 36,  damage: 48,  color: '#d58cff', ai: 6,  behavior: 'funky', count: 7, desc: 'Explodes, then sprays bomblets everywhere.' },
   leapfrog: { name: 'Leapfrog',     price: 2500, bundle: 3, radius: 26,  damage: 44,  color: '#9cf06a', ai: 4,  behavior: 'leapfrog', bounces: 3, desc: 'Hops forward, exploding three times.' },
