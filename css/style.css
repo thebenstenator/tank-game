@@ -140,17 +140,27 @@ select option { background: #151824; }
 #hud { position: fixed; inset: 0; pointer-events: none; }
 #hud > * { pointer-events: auto; }
 
-.hud-bar {
+/* Controls live in a strip along the bottom; the battlefield is fitted above it (see HUD_RESERVE). */
+#hud .hud-strip {
   position: absolute;
-  top: 12px;
-  left: 50%;
-  transform: translateX(-50%);
+  left: 0; right: 0; bottom: 0;
+  height: 84px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 0 10px 12px;
+  pointer-events: none;
+}
+#hud .hud-strip > * { pointer-events: auto; }
+
+.hud-bar {
   display: flex;
   align-items: center;
   gap: 18px;
   padding: 8px 10px 8px 16px;
   border-radius: 16px;
-  max-width: calc(100% - 24px);
+  min-width: 0;
   white-space: nowrap;
   transition: opacity 0.2s;
 }
@@ -235,10 +245,8 @@ select option { background: #151824; }
 .fire-btn:hover { filter: brightness(1.1); }
 
 .hud-corner {
-  position: absolute;
-  top: 12px;
-  right: 12px;
   display: flex;
+  flex: none;
   align-items: center;
   gap: 8px;
   padding: 6px 6px 6px 12px;
@@ -249,24 +257,30 @@ select option { background: #151824; }
 }
 .hud-help {
   position: absolute;
-  bottom: 10px;
+  bottom: 1px;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.55);
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
   white-space: nowrap;
   pointer-events: none !important;
 }
-@media (max-width: 1250px) {
-  .hud-corner { top: auto; bottom: 34px; }
-  .hud-bar { gap: 12px; }
+@media (max-width: 1400px) {
+  .hud-bar { gap: 11px; padding-left: 12px; }
+  .weapon-box { min-width: 132px; }
+  .hud-help { display: none; }
+}
+@media (max-width: 1180px) {
+  .hud-player { min-width: 0; }
+  .hud-sep { display: none; }
+  #hud-round { display: none; }
 }
 
 /* ---------- Banner + toast ---------- */
 .banner {
   position: fixed;
-  top: 84px;
+  top: 18px;
   left: 50%;
   transform: translateX(-50%);
   padding: 6px 16px;

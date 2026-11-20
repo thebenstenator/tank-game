@@ -100,8 +100,9 @@ class Game {
     this.canvas.height = Math.round(ch * dpr);
     this.canvas.style.width = cw + 'px';
     this.canvas.style.height = ch + 'px';
-    const s = Math.min(cw / W, ch / H);
-    this.view = { dpr, scale: s, ox: (cw - W * s) / 2, oy: (ch - H * s) / 2 };
+    const ah = Math.max(200, ch - HUD_RESERVE); // battlefield sits above the HUD strip
+    const s = Math.min(cw / W, ah / H);
+    this.view = { dpr, scale: s, ox: (cw - W * s) / 2, oy: (ah - H * s) / 2 };
   }
 
   // ---------------------------------------------------------------- setup
@@ -884,6 +885,15 @@ class Game {
       ctx.globalAlpha = 0.35;
       ctx.drawImage(this.bg, (cw - W * s) / 2, (ch - H * s) / 2, W * s, H * s);
       ctx.globalAlpha = 1;
+    }
+    // Bedrock under the battlefield, behind the HUD strip
+    const yb = Math.floor((v.oy + H * v.scale) * v.dpr);
+    if (yb < ch) {
+      const gr = ctx.createLinearGradient(0, yb, 0, ch);
+      gr.addColorStop(0, rgbStr(this.theme.deep, 1));
+      gr.addColorStop(1, rgbStr(this.theme.deep, 0.35));
+      ctx.fillStyle = gr;
+      ctx.fillRect(0, yb - 1, cw, ch - yb + 1);
     }
 
     const k = v.dpr * v.scale;

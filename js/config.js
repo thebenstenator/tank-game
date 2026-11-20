@@ -3,9 +3,10 @@
 // Logical world size. Height is fixed; width follows the window's aspect ratio
 // (set at the start of each round) so the battlefield fills the screen.
 const WORLD_H = 960;
+const HUD_RESERVE = 84;   // CSS px kept clear at the bottom for the HUD strip
 let W = 1280, H = 720;
 function fitWorldToWindow() {
-  const aspect = clamp(window.innerWidth / Math.max(1, window.innerHeight), 1.3, 2.4);
+  const aspect = clamp(window.innerWidth / Math.max(1, window.innerHeight - HUD_RESERVE), 1.3, 2.4);
   H = WORLD_H;
   W = Math.round(H * aspect);
   // Full power on flat ground with no wind carries ~1.6 field widths, whatever the window shape.
