@@ -7,8 +7,12 @@ const HUD_RESERVE = 84;   // CSS px kept clear at the bottom for the HUD strip
 let W = 1280, H = 720;
 function fitWorldToWindow() {
   const aspect = clamp(window.innerWidth / Math.max(1, window.innerHeight - HUD_RESERVE), 1.3, 2.4);
-  H = WORLD_H;
-  W = Math.round(H * aspect);
+  setWorldSize(Math.round(WORLD_H * aspect), WORLD_H);
+}
+/** Set the battlefield size directly (online guests use the host's). */
+function setWorldSize(w, h) {
+  W = w;
+  H = h;
   // Full power on flat ground with no wind carries ~1.6 field widths, whatever the window shape.
   MUZZLE_MAX = Math.sqrt(RANGE_FACTOR * W * GRAVITY);
 }

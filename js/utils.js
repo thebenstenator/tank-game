@@ -9,11 +9,26 @@ function randn() { return (Math.random() + Math.random() + Math.random() - 1.5) 
 function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
 function lerp(a, b, t) { return a + (b - a) * t; }
 function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
-function weightedPick(items) {
-  let r = Math.random() * items.reduce((s, it) => s + it.weight, 0);
+function weightedPick(items, rnd = Math.random) {
+  let r = rnd() * items.reduce((s, it) => s + it.weight, 0);
   for (const it of items) { r -= it.weight; if (r <= 0) return it; }
   return items[items.length - 1];
 }
+// Seeded random stream for anything that changes the outcome of a shot (bomblet spread,
+// death effects…). Online, the host sends a seed with every shot so all screens agree.
+// Cosmetic randomness (particles, sounds) keeps using Math.random.
+let _simSeed = (Math.random() * 4294967296) >>> 0;
+function seedSim(s) { _simSeed = s >>> 0; }
+function simRandom() { // mulberry32
+  _simSeed = (_simSeed + 0x6D2B79F5) >>> 0;
+  let t = _simSeed;
+  t = Math.imul(t ^ (t >>> 15), t | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+}
+function srand(a = 1, b) { return b === undefined ? simRandom() * a : a + simRandom() * (b - a); }
+function srandInt(a, b) { return Math.floor(a + simRandom() * (b - a + 1)); }
+
 function shuffle(arr) {
   for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));

@@ -221,6 +221,45 @@ class Terrain {
     }
   }
 
+  /**
+   * Compact column-by-column encoding of the solid dirt: for each column, the number of
+   * solid runs followed by [start, end) pairs. Used to send the battlefield online.
+   */
+  toRuns() {
+    const out = [];
+    for (let x = 0; x < W; x++) {
+      const at = out.length;
+      out.push(0);
+      let inRun = false;
+      for (let y = 0, i = x; y < H; y++, i += W) {
+        if (this.mask[i] && !inRun) { out.push(y); inRun = true; }
+        else if (!this.mask[i] && inRun) { out.push(y); inRun = false; out[at]++; }
+      }
+      if (inRun) { out.push(H); out[at]++; }
+    }
+    return out;
+  }
+
+  /** Replace the dirt with a toRuns() encoding. Only columns that differ are touched. Returns how many changed. */
+  fromRuns(runs) {
+    let k = 0, changed = 0;
+    for (let x = 0; x < W; x++) {
+      const n = runs[k++];
+      let y = 0, diff = false;
+      for (let r = 0; r < n; r++) {
+        const y0 = runs[k++], y1 = runs[k++];
+        for (; y < y0; y++) { const i = y * W + x; if (this.mask[i]) { this.mask[i] = 0; diff = true; } }
+        for (; y < y1; y++) { const i = y * W + x; if (!this.mask[i]) { this.mask[i] = 1; diff = true; } }
+      }
+      for (; y < H; y++) { const i = y * W + x; if (this.mask[i]) { this.mask[i] = 0; diff = true; } }
+      this.unsettled[x] = 0;
+      if (diff) { this.dirty[x] = 1; changed++; }
+    }
+    this.anyUnsettled = false;
+    if (changed) this.anyDirty = true;
+    return changed;
+  }
+
   /** Push changed columns to the canvas. */
   flush() {
     if (!this.anyDirty) return;
