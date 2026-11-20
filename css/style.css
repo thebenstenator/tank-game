@@ -266,6 +266,16 @@ select option { background: #151824; }
   white-space: nowrap;
   pointer-events: none !important;
 }
+.skip-btn {
+  font-family: 'Chakra Petch', sans-serif; font-weight: 700; font-size: 13px; letter-spacing: 0.04em;
+  height: 30px; padding: 0 12px; border-radius: 8px; border: 1px solid rgba(255, 201, 74, 0.6);
+  color: #ffd76a; background: rgba(255, 201, 74, 0.12); animation: skipPulse 1.6s ease-in-out infinite;
+}
+.skip-btn:hover { background: rgba(255, 201, 74, 0.25); }
+.skip-btn.busy { animation: none; opacity: 0.6; pointer-events: none; }
+.skip-btn.hidden { display: none; }
+@keyframes skipPulse { 50% { box-shadow: 0 0 16px rgba(255, 201, 74, 0.45); } }
+
 @media (max-width: 1400px) {
   .hud-bar { gap: 11px; padding-left: 12px; }
   .weapon-box { min-width: 132px; }

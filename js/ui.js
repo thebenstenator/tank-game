@@ -119,6 +119,7 @@ const UI = {
           case 'fire': if (g.humanTurn) g.fire(); break;
           case 'shield': if (g.humanTurn) g.activateShield(g.current); break;
           case 'mute': this.toggleMute(); break;
+          case 'skip': g.skipRound(); break;
           case 'menu': if (confirm('Quit to the main menu? This match will be lost.')) this.backToMenu(); break;
         }
       });
@@ -229,6 +230,8 @@ const UI = {
     this.set('hud-shield', 'class', 'hbtn shield-btn' + (t.shield > 0 ? ' active' : ''));
     this.set('hud-shield', 'disabled', sc <= 0 || t.shield > 0);
 
+    this.set('hud-skip', 'class', game.skipping ? 'skip-btn busy' : game.canSkip ? 'skip-btn' : 'skip-btn hidden');
+    this.set('hud-skip', 'text', game.skipping ? 'Skipping…' : 'Skip to end ⏭');
     this.set('hud-round', 'text', `Round ${game.round}/${game.settings.rounds}`);
   },
 

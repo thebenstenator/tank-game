@@ -229,6 +229,43 @@ class Game {
     Sound.win();
   }
 
+  /** True when every human is out of the round (or there are none) and it's still being fought. */
+  get canSkip() {
+    return !this.skipping && (this.state === 'aim' || this.state === 'resolve') &&
+      this.players.length > 0 && !this.players.some(p => !p.ai && p.alive);
+  }
+
+  skipRound() {
+    if (!this.canSkip) return;
+    this.skipping = true;
+    this.skipFrames = 0;
+    Sound.setSilent(true);
+  }
+
+  /** Runs the simulation as fast as the frame budget allows until the round is decided. */
+  fastForward() {
+    const t0 = performance.now();
+    while (this.skipping && performance.now() - t0 < 25) {
+      this.update(1 / 60);
+      if (++this.skipFrames > 60 * 60 * 10 && this.state === 'aim') {
+        // Ten simulated minutes without a result: the healthiest tank takes it.
+        const alive = this.players.filter(p => p.alive);
+        this.finishRound(alive.reduce((a, b) => (b.health > a.health ? b : a), alive[0]) || null);
+      }
+      if (this.state !== 'aim' && this.state !== 'resolve') this.endSkip();
+    }
+  }
+
+  endSkip() {
+    this.skipping = false;
+    this.particles = [];
+    this.explosions = [];
+    this.floaters = [];
+    this.shake = 0;
+    this.flash = 0;
+    Sound.setSilent(false);
+  }
+
   get humanTurn() { return this.state === 'aim' && this.current && !this.current.ai; }
 
   cycleWeapon(dir) {

@@ -90,11 +90,21 @@ const Sound = {
 
   toggle() {
     this.muted = !this.muted;
-    if (this.master) this.master.gain.value = this.muted ? 0 : this.volume;
+    this.applyGain();
     return this.muted;
   },
 
-  ok() { return this.ctx && !this.muted; },
+  /** Silence everything (used while fast-forwarding a CPU-only round). */
+  setSilent(on) {
+    this.silent = on;
+    this.applyGain();
+  },
+
+  applyGain() {
+    if (this.master) this.master.gain.value = this.muted || this.silent ? 0 : this.volume;
+  },
+
+  ok() { return this.ctx && !this.muted && !this.silent; },
 
   /** World x → stereo pan. */
   panX(x) { return x == null ? 0 : clamp((x / W) * 2 - 1, -1, 1) * 0.75; },
@@ -320,6 +330,12 @@ const Sound = {
 
   update(game, dt) {
     if (!this.ctx || this.ctx.state !== 'running' || dt <= 0) return;
+    if (this.silent) { // drop shell voices; nothing else needs driving while silent
+      const now = this.ctx.currentTime;
+      this.voices.forEach(v => this.releaseVoice(v, now));
+      this.voices = [];
+      return;
+    }
     this.updateWind(game, dt);
     this.updateFlight(game);
     this.updateServo(game, dt);

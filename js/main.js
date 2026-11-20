@@ -47,7 +47,7 @@
   function frame(now) {
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
-    game.update(dt);
+    if (game.skipping) game.fastForward(); else game.update(dt);
     game.render();
     UI.updateHUD(game);
     requestAnimationFrame(frame);

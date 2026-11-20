@@ -20,7 +20,7 @@ Open `index.html` in a browser. (Fonts load from Google Fonts; everything else i
 | Space / Enter | Fire |
 | M | Mute |
 
-The HUD buttons do the same thing with the mouse.
+The HUD along the bottom has buttons for all of these. Once every human is knocked out of a round, a **Skip to end** button fast-forwards the CPUs to the result.
 
 ## Rules
 
