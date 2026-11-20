@@ -44,33 +44,53 @@ const DEFAULT_NAMES = ['Red', 'Blue', 'Green', 'Gold', 'Violet', 'Rose'];
 // tank's centre, then falling off to nothing at radius + 14. Without it, damage falls off from 8px.
 const WEAPONS = {
   baby:     { name: 'Baby Missile', price: 0,    bundle: 0, radius: 20,  damage: 51,  color: '#ffe08a', ai: 1,  desc: 'Free and unlimited. Small, but honest.' },
+  tracer:   { name: 'Tracer',       price: 300,  bundle: 10, radius: 0,  damage: 0,   color: '#9fe8ff', ai: 0,  behavior: 'tracer', desc: 'Harmless. Leaves its path on screen so you can line up the real shot.' },
   missile:  { name: 'Missile',      price: 1500, bundle: 5, radius: 40,  damage: 66,  color: '#ffb14a', ai: 3,  desc: 'A solid all-rounder with a bigger blast.' },
   babynuke: { name: 'Baby Nuke',    price: 4000, bundle: 2, radius: 66,  damage: 110, core: 42, color: '#ff7a3d', ai: 6,  desc: 'Lethal within a tank-width of the target. Leaves a crater worth remembering.' },
   nuke:     { name: 'Nuke',         price: 9000, bundle: 1, radius: 105, damage: 130, core: 62, color: '#ff4d6d', ai: 10, desc: 'Lethal across a wide zone. Rearranges the landscape — and your enemies.' },
   mirv:     { name: 'MIRV',         price: 6000, bundle: 2, radius: 30,  damage: 50,  color: '#7cd3ff', ai: 7,  behavior: 'mirv', count: 5, desc: 'Splits into five warheads at the top of its arc.' },
   funky:    { name: 'Funky Bomb',   price: 5000, bundle: 2, radius: 36,  damage: 48,  color: '#d58cff', ai: 6,  behavior: 'funky', count: 7, desc: 'Explodes, then sprays bomblets everywhere.' },
+  napalm:   { name: 'Napalm',       price: 5000, bundle: 2, radius: 22,  damage: 20,  color: '#ff8a1f', ai: 6,  behavior: 'napalm', count: 22, desc: 'Splashes burning fuel that runs downhill and pools in valleys.' },
   leapfrog: { name: 'Leapfrog',     price: 2500, bundle: 3, radius: 26,  damage: 44,  color: '#9cf06a', ai: 4,  behavior: 'leapfrog', bounces: 3, desc: 'Hops forward, exploding three times.' },
   roller:   { name: 'Roller',       price: 2000, bundle: 4, radius: 34,  damage: 62,  color: '#ffd84a', ai: 4,  behavior: 'roller', desc: 'Rolls downhill until it finds a valley — or a tank.' },
+  burrower: { name: 'Burrower',     price: 3000, bundle: 3, radius: 30,  damage: 52,  color: '#d6a35c', ai: 4,  behavior: 'burrow', dig: 260, desc: 'Tunnels through the dirt after it lands, then explodes. The ground above caves in.' },
+  laser:    { name: 'Laser',        price: 7500, bundle: 2, radius: 4,   damage: 60,  color: '#ff3b6b', ai: 7,  behavior: 'laser', desc: 'A straight beam: no gravity, no wind, cuts through terrain. Power sets its length.' },
   dirt:     { name: 'Dirt Ball',    price: 1000, bundle: 5, radius: 42,  damage: 0,   color: '#c08a5a', ai: 0,  behavior: 'dirt', desc: 'Buries things. Good for walls and petty revenge.' },
+  fountain: { name: 'Dirt Fountain', price: 1500, bundle: 3, radius: 18, damage: 0,   color: '#b88352', ai: 0,  behavior: 'fountain', count: 11, desc: 'Erupts into a spray of dirt clods that rain down and bury things.' },
+  excavator: { name: 'Excavator',   price: 1200, bundle: 3, radius: 80,  damage: 0,   color: '#e8d27a', ai: 0,  behavior: 'excavate', desc: 'Blows away a big chunk of dirt with no blast damage. Dig yourself out — or drop an enemy into a pit.' },
 };
+for (const id in WEAPONS) WEAPONS[id].id = id;
 const WEAPON_ORDER = Object.keys(WEAPONS);
+// Clods thrown by the Dirt Fountain
+const CLOD = { id: 'clod', name: 'Dirt clod', radius: 17, damage: 0, color: '#b88352', behavior: 'dirt' };
 
 const ITEMS = {
   shield:    { name: 'Shield',    price: 3500, bundle: 1, color: '#6fe3ff', desc: 'Absorbs 100 damage. Press S on your turn to raise it.' },
   parachute: { name: 'Parachute', price: 1200, bundle: 2, color: '#f2f2f2', desc: 'Opens automatically when you fall. No fall damage.' },
 };
 
-// How a tank goes out when destroyed. weight = relative chance.
-// Every effect except 'fizzle' can badly hurt anyone parked nearby.
+// How a tank goes out when destroyed. Weapons with a signature death always cause it
+// (DEATH_BY_WEAPON); anything else (Baby Missile, Missile, falls, chain reactions) picks
+// from the effects with a weight, at those relative odds. Most can hurt anyone parked nearby.
 const DEATH_EFFECTS = [
-  { id: 'fizzle',   label: 'FIZZLED',        weight: 14 },
-  { id: 'blast',    label: 'DESTROYED',      weight: 30 },
-  { id: 'bigboom',  label: 'KABOOM!',        weight: 18 },
-  { id: 'shrapnel', label: 'SHRAPNEL!',      weight: 15 },
-  { id: 'cookoff',  label: 'AMMO COOK-OFF!', weight: 14 },
-  { id: 'meltdown', label: 'MELTDOWN!',      weight: 9 },
+  { id: 'fizzle',   name: 'Fizzle',        label: 'FIZZLED',        weight: 14 },
+  { id: 'blast',    name: 'Blast',         label: 'DESTROYED',      weight: 30 },
+  { id: 'bigboom',  name: 'Big boom',      label: 'KABOOM!',        weight: 18 },
+  { id: 'shrapnel', name: 'Shrapnel',      label: 'SHRAPNEL!',      weight: 15 },
+  { id: 'cookoff',  name: 'Ammo cook-off', label: 'AMMO COOK-OFF!', weight: 14 },
+  { id: 'meltdown', name: 'Meltdown',      label: 'MELTDOWN!',      weight: 9 },
+  { id: 'funky',    name: 'Funky',         label: 'FUNKY!',         weight: 0 },
+  { id: 'runaway',  name: 'Loose turret',  label: 'LOOSE TURRET!',  weight: 0 },
+  { id: 'inferno',  name: 'Inferno',       label: 'INFERNO!',       weight: 0 },
+  { id: 'vaporize', name: 'Vaporized',     label: 'VAPORIZED',      weight: 0 },
+  { id: 'sinkhole', name: 'Sinkhole',      label: 'SINKHOLE!',      weight: 0 },
 ];
-const SHRAPNEL = { name: 'Shrapnel', radius: 20, damage: 26, color: '#ffb870' };
+const CLASSIC_DEATHS = DEATH_EFFECTS.filter(e => e.weight > 0);
+const DEATH_BY_WEAPON = {
+  babynuke: 'bigboom', nuke: 'meltdown', mirv: 'shrapnel', funky: 'funky', leapfrog: 'cookoff',
+  roller: 'runaway', napalm: 'inferno', laser: 'vaporize', burrower: 'sinkhole',
+};
+const SHRAPNEL = { id: 'shrapnel', name: 'Shrapnel', radius: 20, damage: 26, color: '#ffb870' };
 
 const SHOP_ORDER =[...WEAPON_ORDER.filter(id => WEAPONS[id].price > 0), 'shield', 'parachute'];
 function shopEntry(id) { return WEAPONS[id] || ITEMS[id]; }

@@ -24,7 +24,7 @@ const AI = {
 
   pickWeapon(t, target) {
     const lower = target.y > t.y + 40;
-    const pool = WEAPON_ORDER.filter(id => id !== 'baby' && id !== 'dirt' && t.ammo(id) > 0 && (id !== 'roller' || lower));
+    const pool = WEAPON_ORDER.filter(id => id !== 'baby' && WEAPONS[id].ai > 0 && t.ammo(id) > 0 && (id !== 'roller' || lower));
     if (!pool.length) return 'baby';
     if (t.ai === 'easy' && Math.random() < 0.55) return 'baby';
     if (t.ai === 'hard') {
@@ -40,14 +40,26 @@ const AI = {
   plan(game, t) {
     const prof = this.PROFILES[t.ai] || this.PROFILES.normal;
     const target = this.chooseTarget(game, t);
-    const weapon = this.pickWeapon(t, target);
+    let weapon = this.pickWeapon(t, target);
+    const shield = (t.inventory.shield || 0) > 0 && t.shield <= 0 && (t.ai !== 'easy' || Math.random() < 0.5);
+    if (weapon === 'laser') { // straight line: aim right at them, with enough power to reach
+      const mx = t.x, my = t.y - 11, tx = target.x, ty = target.y - 8;
+      const dist = Math.hypot(tx - mx, ty - my);
+      const need = (dist + 30 - 160) / (W * 1.2) * 1000;
+      if (need <= t.maxPower) {
+        const ang = Math.atan2(-(ty - my), tx - mx) / DEG;
+        return { angle: Math.round(clamp(ang + randn() * prof.angErr * 0.5, 0, 180) * 10) / 10, power: Math.round(clamp(need + 40, 50, t.maxPower)), weapon, shield };
+      }
+      weapon = 'baby';
+    }
     const R = WEAPONS[weapon].radius;
     const tx = target.x, ty = target.y - 7;
     const maxP = t.maxPower;
 
     const evalShot = (angle, power) => {
-      const r = game.simulate(t, angle, power);
+      let r = game.simulate(t, angle, power);
       if (!r) return 1e6;
+      if (weapon === 'burrower' && r.ground) r = game.digPath(r.x, r.y, r.vx, r.vy, t);
       if (r.tank === target) return 0;
       let s = Math.hypot(r.x - tx, r.y - ty);
       if (Math.hypot(r.x - t.x, r.y - (t.y - 7)) < R + 25) s += 2000; // don't hit yourself
@@ -75,12 +87,11 @@ const AI = {
 
     const angle = Math.round(clamp(best.a + randn() * prof.angErr, 0, 180) * 10) / 10;
     const power = Math.round(clamp(best.p + randn() * prof.powErr, 50, maxP));
-    const shield = (t.inventory.shield || 0) > 0 && t.shield <= 0 && (t.ai !== 'easy' || Math.random() < 0.5);
     return { angle, power, weapon, shield };
   },
 
   shop(t) {
-    const prefs = ['missile', 'babynuke', 'shield', 'mirv', 'parachute', 'funky', 'leapfrog', 'roller', 'nuke'];
+    const prefs = ['missile', 'babynuke', 'shield', 'mirv', 'parachute', 'napalm', 'funky', 'laser', 'leapfrog', 'burrower', 'roller', 'nuke'];
     const budget = t.money * (t.ai === 'easy' ? 0.5 : t.ai === 'hard' ? 0.95 : 0.8);
     let spent = 0;
     for (let tries = 0; tries < 40; tries++) {

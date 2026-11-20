@@ -396,6 +396,8 @@ select option { background: #151824; }
 /* ---------- Round over ---------- */
 .ro-panel { max-width: 560px; text-align: center; }
 .ro-panel h2 { font-family: 'Chakra Petch', sans-serif; font-size: 36px; margin: 6px 0 20px; }
+.card .sig { color: #ff9d7a; font-size: 12px; margin-top: -4px; }
+
 .standings { width: 100%; border-collapse: collapse; margin-bottom: 22px; font-size: 14px; }
 .standings th { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); font-weight: 600; padding: 6px 8px; text-align: right; }
 .standings th:nth-child(2), .standings td:nth-child(2) { text-align: left; }

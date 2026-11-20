@@ -310,6 +310,39 @@ const Sound = {
     }
   },
 
+  /** Laser: a bright descending zap with a hiss. */
+  laser(x) {
+    if (!this.ok()) return;
+    const pan = this.panX(x);
+    this.tone({ type: 'sawtooth', f0: 2600, f1: 320, dur: 0.5, vol: 0.09, pan, wet: 0.3 });
+    this.tone({ type: 'square', f0: 1300, f1: 880, dur: 0.35, vol: 0.04, pan, wet: 0.3 });
+    this.noiseBurst({ dur: 0.45, filter: 'highpass', f0: 7000, f1: 2500, vol: 0.12, pan, wet: 0.3 });
+  },
+
+  /** Napalm igniting: a big whoosh with a low roar. */
+  napalm(x) {
+    if (!this.ok()) return;
+    const pan = this.panX(x);
+    this.noiseBurst({ dur: 0.8, filter: 'bandpass', f0: 350, f1: 2400, q: 0.8, vol: 0.32, pan, wet: 0.3 });
+    this.noiseBurst({ dur: 1.4, f0: 320, f1: 70, vol: 0.25, pan, wet: 0.3 });
+  },
+
+  /** A tank dissolving into light. */
+  vaporize(x) {
+    if (!this.ok()) return;
+    const pan = this.panX(x);
+    for (let i = 0; i < 8; i++) this.tone({ f0: rand(1500, 3800), f1: rand(3000, 6000), dur: rand(0.2, 0.5), vol: 0.035, delay: i * 0.05, pan, wet: 0.5 });
+    this.noiseBurst({ dur: 0.9, filter: 'highpass', f0: 3000, f1: 9000, vol: 0.1, pan, wet: 0.5 });
+  },
+
+  /** Excavator: dirt blown away with a deep thump. */
+  excavate(x) {
+    if (!this.ok()) return;
+    const pan = this.panX(x);
+    this.noiseBurst({ dur: 0.9, f0: 1100, f1: 60, vol: 0.5, pan, wet: 0.3 });
+    this.weight(0.25);
+  },
+
   /** Turn start: a soft two-note chime for humans, a lower blip for CPUs. */
   turn(human) {
     if (!this.ok()) return;
@@ -340,6 +373,15 @@ const Sound = {
     this.updateFlight(game);
     this.updateServo(game, dt);
     this.updateRumble(game);
+    this.updateFire(game, dt);
+  },
+
+  /** Crackling while napalm burns. */
+  updateFire(game, dt) {
+    const n = game.fires ? game.fires.length : 0;
+    if (!n || Math.random() > dt * Math.min(30, n * 1.5)) return;
+    const f = game.fires[(Math.random() * n) | 0];
+    this.noiseBurst({ dur: rand(0.03, 0.09), filter: 'bandpass', f0: rand(1200, 4500), f1: rand(500, 1200), q: 2, vol: rand(0.03, 0.08), pan: this.panX(f.x), wet: 0.1 });
   },
 
   /** Gusting wind bed, louder and higher with stronger wind; a howl layer in gales. */
@@ -412,7 +454,7 @@ const Sound = {
 
   driveVoice(v, share) {
     const p = v.p, T = 0.05;
-    if (p.kind === 'roll') { // grinding rumble along the ground
+    if (p.kind === 'roll' || p.kind === 'dig') { // grinding rumble along (or through) the ground
       this.ramp(v.depth.gain, 0.05, T);
       this.ramp(v.air.f.frequency, 110 + (p.rollSpeed || 80) * 1.3, T);
       this.ramp(v.air.g.gain, 0.22 * share, T);

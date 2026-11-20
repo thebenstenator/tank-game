@@ -34,6 +34,8 @@ class Tank {
     this.lastTrail = null;
     this.lastShot = null;
     this.lastHitBy = null;
+    this.lastHitWeapon = null;
+    this.burn = 0;
     this.weapon = 'baby';
     this.angle = 60;
     this.power = 500;
@@ -79,6 +81,8 @@ class Game {
     this.particles = [];
     this.floaters = [];
     this.timers = [];
+    this.fires = [];   // burning napalm blobs (part of the simulation)
+    this.beams = [];   // laser beams (visual only)
     this.dust = [];
     this.keys = {};
     this.fine = false;
@@ -140,9 +144,12 @@ class Game {
   clearShots() {
     this.projectiles = [];
     this.timers = [];
+    this.fires = [];
   }
 
   clearEffects() {
+    this.fires = [];
+    this.beams = [];
     this.projectiles = [];
     this.explosions = [];
     this.particles = [];
@@ -343,10 +350,21 @@ class Game {
       Net.broadcast({ type: 'shot', i: t.index, angle: t.angle, power: t.power, weapon: t.weapon, seed });
     }
     let wid = t.weapon;
-    if (t.ammo(wid) <= 0) wid = 'baby';
-    if (wid !== 'baby') t.inventory[wid]--;
+    // A guest always fires what the host says, even if its copy of the inventory disagrees.
+    if (!WEAPONS[wid] || (t.ammo(wid) <= 0 && !fromNet)) wid = 'baby';
+    if (wid !== 'baby') t.inventory[wid] = Math.max(0, (t.inventory[wid] || 0) - 1);
     const w = WEAPONS[wid];
     const m = t.muzzle();
+    if (w.behavior === 'laser') {
+      t.lastShot = { angle: Math.round(t.angle), power: Math.round(t.power) };
+      this.fireLaser(t, w, m);
+      this.state = 'resolve';
+      this.resolveTimer = 0;
+      this.ai = null;
+      this.keys = {};
+      if (t.ammo(wid) <= 0) t.weapon = 'baby';
+      return;
+    }
     const sp = muzzleSpeed(t.power);
     const a = t.angle * DEG;
     const p = this.makeProjectile(m.x, m.y, Math.cos(a) * sp, -Math.sin(a) * sp, w, t, 'shell');
@@ -369,6 +387,37 @@ class Game {
     for (let i = 0; i < 6; i++) {
       this.spawn({ type: 'smoke', x: m.x, y: m.y, vx: Math.cos(a) * rand(20, 60) + rand(-15, 15), vy: -Math.sin(a) * rand(20, 60) + rand(-15, 15), life: rand(0.8, 1.4), size: 4, grow: 2.5, drag: 1.5, rgb: [190, 190, 200], alpha: 0.35, windF: 0.6 });
     }
+  }
+
+  /** Straight beam from the muzzle; power sets its length. Cuts a thin channel and hits every tank on the line. */
+  fireLaser(t, w, m) {
+    const a = t.angle * DEG, dx = Math.cos(a), dy = -Math.sin(a);
+    const len = 160 + (t.power / 1000) * W * 1.2;
+    let x = m.x, y = m.y, d = 0, n = 0;
+    const hit = new Set();
+    while (d < len) {
+      x += dx * 2; y += dy * 2; d += 2;
+      if (x < -20 || x > W + 20 || y < -600 || y > H + 20) break;
+      if ((n++ & 1) === 0 && this.terrain.isSolid(x, y)) this.terrain.carve(x, y, w.radius);
+      for (const p of this.players) {
+        if (p !== t && p.alive && !hit.has(p) && p.hitTest(x, y)) {
+          hit.add(p);
+          this.damageTank(p, w.damage, t, w.id);
+          for (let i = 0; i < 18; i++) {
+            const aa = rand(TAU), s = rand(60, 220);
+            this.spawn({ type: 'spark', x, y, vx: Math.cos(aa) * s, vy: Math.sin(aa) * s, life: rand(0.2, 0.5), size: 1.6, drag: 2, rgb: [255, 120, 160] });
+          }
+        }
+      }
+    }
+    t.lastTrail = [{ x: m.x, y: m.y }, { x, y }];
+    this.beams.push({ x0: m.x, y0: m.y, x1: x, y1: y, t: 0, dur: 0.8, rgb: hexToRgb(w.color) });
+    for (let i = 0; i < 30; i++) { // embers along the cut
+      const f = Math.random();
+      this.spawn({ type: 'glow', x: m.x + (x - m.x) * f, y: m.y + (y - m.y) * f, vx: rand(-20, 20), vy: rand(-40, 0), life: rand(0.4, 1), size: rand(1.2, 2.2), rgb: [255, 90, 140] });
+    }
+    this.shake = Math.max(this.shake, 4);
+    Sound.laser(m.x);
   }
 
   makeProjectile(x, y, vx, vy, w, owner, kind) {
@@ -462,12 +511,14 @@ class Game {
     const list = this.projectiles.slice();
     for (const p of list) if (!p.dead) this.stepProjectile(p, dt);
     this.projectiles = this.projectiles.filter(p => !p.dead);
+    this.updateFires(dt);
   }
 
   stepProjectile(p, dt) {
     p.age += dt;
     if (p.age > 20) { p.dead = true; return; }
     if (p.kind === 'roll') { this.stepRoller(p, dt); return; }
+    if (p.kind === 'dig') { this.stepDig(p, dt); return; }
 
     p.vx += this.wind * WIND_SCALE * dt;
     p.vy += GRAVITY * dt;
@@ -535,7 +586,7 @@ class Game {
         if (dx * dx + dy * dy > 34 * 34) cleared = true;
       }
       const hit = this.trace(x, y, nx, ny, cleared ? null : t);
-      if (hit) return hit;
+      if (hit) { hit.vx = vx; hit.vy = vy; return hit; }
       x = nx; y = ny;
       if (y > H + 40 || x < -400 || x > W + 400) return null;
     }
@@ -565,11 +616,36 @@ class Game {
     if (b === 'roller' && hit.ground) {
       if (this.startRoll(p, hit)) return;
     }
+    if (b === 'burrow' && hit.ground) { this.startDig(p, hit); return; }
     p.dead = true;
 
     if (b === 'dirt') { this.dirtBlast(hit.x, hit.y, p.radius); return; }
+    if (b === 'tracer') {
+      for (let i = 0; i < 10; i++) {
+        const a = rand(TAU), s = rand(30, 90);
+        this.spawn({ type: 'glow', x: hit.x, y: hit.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 20, life: rand(0.3, 0.6), size: 1.5, rgb: [160, 235, 255] });
+      }
+      Sound.pop(hit.x);
+      return;
+    }
+    if (b === 'fountain') {
+      this.dirtBlast(hit.x, hit.y, p.radius);
+      for (let i = 0; i < w.count; i++) {
+        const q = this.makeProjectile(hit.x, hit.y - 6, srand(-150, 150), srand(-440, -220), CLOD, p.owner, 'shell');
+        q.cleared = true;
+        q.ignoreTank = hit.tank || null; q.ignoreT = hit.tank ? 0.25 : 0;
+        this.projectiles.push(q);
+      }
+      return;
+    }
+    if (b === 'excavate') { this.excavate(hit.x, hit.y, p.radius); return; }
 
-    this.explode(hit.x, hit.y, p.radius, p.damage, p.owner, { core: p.core });
+    this.explode(hit.x, hit.y, p.radius, p.damage, p.owner, { core: p.core, weapon: w.id });
+
+    if (b === 'napalm') {
+      this.spawnFires(hit.x, hit.y, w.count, p.owner, 1);
+      Sound.napalm(hit.x);
+    }
 
     if (b === 'funky') {
       Sound.pop(hit.x);
@@ -589,6 +665,108 @@ class Game {
       q.ignoreTank = hit.tank || null; q.ignoreT = hit.tank ? 0.25 : 0;
       this.projectiles.push(q);
     }
+  }
+
+  // ---------------------------------------------------------------- burrower
+
+  startDig(p, hit) {
+    const dx = p.vx, dy = p.vy * 0.45, l = Math.hypot(dx, dy) || 1; // flattened: it tunnels more than it dives
+    p.kind = 'dig';
+    p.dx = dx / l; p.dy = dy / l;
+    p.dist = p.w.dig;
+    p.x = hit.x; p.y = hit.y;
+    p.vx = 0; p.vy = 0;
+  }
+
+  stepDig(p, dt) {
+    const step = 190 * dt;
+    const nx = p.x + p.dx * step, ny = p.y + p.dy * step;
+    for (const t of this.players) {
+      if (t.hitTest(nx, ny) && (p.cleared || t !== p.owner)) { p.x = nx; p.y = ny; this.burrowBoom(p); return; }
+    }
+    p.x = nx; p.y = ny;
+    p.dist -= step;
+    this.terrain.carve(nx, ny, 7);
+    this.recordTrail(p);
+    if (p.dist <= 0 || nx < 0 || nx >= W || ny < 0 || ny >= H - 2) this.burrowBoom(p);
+  }
+
+  burrowBoom(p) {
+    p.dead = true;
+    this.explode(p.x, p.y, p.radius, p.damage, p.owner, { weapon: p.w.id });
+  }
+
+  /** Where a burrower that lands at (x, y) moving (vx, vy) would end up. Used by the CPUs. */
+  digPath(x, y, vx, vy, owner) {
+    let dx = vx, dy = vy * 0.45;
+    const l = Math.hypot(dx, dy) || 1;
+    dx /= l; dy /= l;
+    for (let d = 0; d < WEAPONS.burrower.dig; d += 3) {
+      x += dx * 3; y += dy * 3;
+      if (x < 0 || x >= W || y < 0 || y >= H - 2) break;
+      for (const t of this.players) if (t !== owner && t.hitTest(x, y)) return { x, y, tank: t };
+    }
+    return { x, y, ground: true };
+  }
+
+  // ---------------------------------------------------------------- napalm
+
+  spawnFires(x, y, n, owner, spread) {
+    for (let i = 0; i < n; i++) {
+      this.fires.push({ x, y: y - 3, vx: srand(-130, 130) * spread, vy: srand(-260, -60) * spread, air: true, life: srand(4, 6), owner });
+    }
+  }
+
+  /** Fixed-step: burning blobs splash out, land, run downhill, pool, and burn tanks they touch. */
+  updateFires(dt) {
+    if (!this.fires.length) return;
+    const T = this.terrain;
+    for (const f of this.fires) {
+      f.life -= dt;
+      if (f.air) {
+        f.vy += GRAVITY * dt;
+        const nx = f.x + f.vx * dt, ny = f.y + f.vy * dt;
+        if (nx < 0 || nx >= W || ny >= H) { f.life = 0; continue; }
+        if (T.isSolid(nx, ny)) {
+          f.air = false;
+          f.vx *= 0.25;
+          f.y = T.surfaceY(Math.round(f.x));
+        } else { f.x = nx; f.y = ny; }
+        continue;
+      }
+      const l = T.surfaceY(Math.round(f.x - 3)), r = T.surfaceY(Math.round(f.x + 3));
+      f.vx += clamp(r - l, -12, 12) * 10 * dt; // flows toward lower ground (larger y)
+      f.vx *= 1 - 2.5 * dt;
+      f.x = clamp(f.x + f.vx * dt, 0, W - 1);
+      f.y = T.surfaceY(Math.round(f.x));
+      if (f.y >= H) f.life = 0;
+    }
+    for (const t of this.players) {
+      if (!t.alive) continue;
+      let n = 0, by = null;
+      for (const f of this.fires) {
+        if (!f.air && f.life > 0 && Math.abs(f.x - t.x) < 16 && f.y > t.y - 24 && f.y < t.y + 10) { n++; by = f.owner; }
+      }
+      if (n) { t.burn += Math.min(36, 6 * n) * dt; t.burnBy = by; }
+      if (t.burn >= 4 || (t.burn > 0.5 && !n)) { this.damageTank(t, t.burn, t.burnBy, 'napalm', true); t.burn = 0; }
+    }
+    this.fires = this.fires.filter(f => f.life > 0);
+  }
+
+  // ---------------------------------------------------------------- excavator
+
+  excavate(x, y, r) {
+    this.terrain.carve(x, y, r);
+    const T = this.theme;
+    for (let i = 0; i < 40; i++) {
+      const a = rand(TAU), d = rand(r);
+      this.spawn({ type: 'debris', x: x + Math.cos(a) * d, y: y + Math.sin(a) * d, vx: Math.cos(a) * rand(80, 260), vy: Math.sin(a) * rand(80, 260) - 120, life: rand(1, 2), size: rand(1.5, 3.5), g: 500, rgb: pick([T.top, T.mid]) });
+    }
+    for (let i = 0; i < 12; i++) {
+      this.spawn({ type: 'smoke', x: x + rand(-r, r) * 0.7, y: y + rand(-r, r) * 0.5, vx: rand(-30, 30), vy: -rand(10, 40), life: rand(1.2, 2.2), size: r * 0.35, grow: 1, rgb: T.mid, alpha: 0.35, windF: 0.5 });
+    }
+    this.shake = Math.min(20, this.shake + 7);
+    Sound.excavate(x);
   }
 
   startRoll(p, hit) {
@@ -645,7 +823,7 @@ class Game {
       const f = core
         ? (d <= core ? 1 : clamp(1 - (d - core) / (reach - core), 0, 1))
         : clamp(1 - Math.max(0, d - 8) / reach, 0, 1);
-      this.damageTank(t, damage * f, owner);
+      this.damageTank(t, damage * f, owner, opts.weapon || null);
     }
 
     this.explosions.push({ x, y, r: radius, t: 0, dur: 0.45 + radius / 260 });
@@ -688,7 +866,8 @@ class Game {
     Sound.thud(x);
   }
 
-  damageTank(t, amount, by) {
+  /** weapon: id of what dealt it (picks the death effect). quiet: no clank (napalm burns tick often). */
+  damageTank(t, amount, by, weapon = null, quiet = false) {
     if (!t.alive || amount <= 0) return;
     if (t.shield > 0) {
       const ab = Math.min(t.shield, amount);
@@ -707,7 +886,8 @@ class Game {
     const before = t.health;
     t.health = Math.max(0, t.health - amount);
     const dealt = before - t.health;
-    Sound.clank(t.x, dealt / 60);
+    if (dealt > 0) t.lastHitWeapon = weapon;
+    if (!quiet) Sound.clank(t.x, dealt / 60);
     if (by && by !== t) by.money += Math.round(dealt * 15);
     if (by) t.lastHitBy = by;
     t.power = Math.min(t.power, t.maxPower);
@@ -723,7 +903,8 @@ class Game {
     // Collateral damage from the death blast is credited to whoever caused it.
     const by = k || t;
     const x = t.x, y = t.y - 6;
-    const fx = weightedPick(DEATH_EFFECTS, simRandom);
+    const sig = DEATH_BY_WEAPON[t.lastHitWeapon];
+    const fx = (sig && DEATH_EFFECTS.find(e => e.id === sig)) || weightedPick(CLASSIC_DEATHS, simRandom);
     this.floaters.push({ x, y: t.y - 44, text: fx.label, rgb: [255, 255, 255], t: 0, dur: 1.8, size: fx.id === 'meltdown' ? 18 : 14 });
 
     switch (fx.id) {
@@ -785,6 +966,52 @@ class Game {
         });
         break;
       }
+
+      case 'funky': { // the wreck pops into a spray of rainbow bomblets
+        this.explode(x, y, 24, 22, by);
+        const w = WEAPONS.funky;
+        for (let i = 0; i < 6; i++) {
+          const q = this.makeProjectile(x, y - 6, srand(-240, 240), srand(-460, -220), w, by, 'bomblet');
+          q.radius = 22; q.damage = 26; q.cleared = true;
+          q.hue = i * 60;
+          this.projectiles.push(q);
+        }
+        Sound.pop(x);
+        break;
+      }
+
+      case 'runaway': { // the turret breaks loose and rolls downhill as a bomb
+        this.explode(x, y, 18, 14, by);
+        const l = this.terrain.surfaceY(Math.round(t.x - 12)), r = this.terrain.surfaceY(Math.round(t.x + 12));
+        const dir = l > r ? -1 : r > l ? 1 : (simRandom() < 0.5 ? -1 : 1);
+        const wreck = { id: 'wreck', name: 'Loose turret', radius: 40, damage: 50, color: t.color, behavior: 'roller' };
+        const q = this.makeProjectile(t.x, t.y - 12, dir * 70, -90, wreck, by, 'shell');
+        q.cleared = true;
+        this.projectiles.push(q);
+        break;
+      }
+
+      case 'inferno': // bursts into flames and spills burning fuel
+        this.explode(x, y, 30, 28, by);
+        this.spawnFires(x, y, 16, by, 0.7);
+        Sound.napalm(x);
+        break;
+
+      case 'vaporize': // dissolves into light; barely any blast
+        this.explode(x, y, 12, 8, by);
+        for (let i = 0; i < 70; i++) {
+          this.spawn({ type: 'glow', x: t.x + rand(-14, 14), y: t.y - rand(0, 18), vx: rand(-30, 30), vy: -rand(20, 90), drag: 0.6, life: rand(0.8, 1.8), size: rand(1.2, 2.6), rgb: Math.random() < 0.4 ? [255, 255, 255] : t.rgb });
+        }
+        this.flash = Math.max(this.flash, 0.5);
+        Sound.vaporize(x);
+        break;
+
+      case 'sinkhole': // the ground underneath caves in; neighbours may slide in after it
+        this.terrain.carve(x, t.y + 34, 50);
+        this.explode(x, y, 20, 16, by);
+        this.shake = Math.min(26, this.shake + 10);
+        Sound.boom(0.55, x);
+        break;
     }
     this.flash = Math.max(this.flash, 0.4);
   }
@@ -849,7 +1076,7 @@ class Game {
     t.y = Math.round(t.y);
     if (t.fallDist > 6) Sound.land(t.x, t.parachuting ? 0.1 : clamp(t.fallDist / 120, 0.15, 1));
     if (t.alive && !t.parachuting && t.fallDist > 18) {
-      this.damageTank(t, Math.min(60, (t.fallDist - 18) * 0.6), t.lastHitBy);
+      this.damageTank(t, Math.min(60, (t.fallDist - 18) * 0.6), t.lastHitBy, 'fall');
     }
     if (t.fallDist > 6) {
       for (let i = 0; i < 10; i++) {
@@ -870,7 +1097,7 @@ class Game {
   }
 
   updateResolve(dt) {
-    if (this.projectiles.length || this.timers.length) { this.resolveTimer = 0; return; }
+    if (this.projectiles.length || this.timers.length || this.fires.length) { this.resolveTimer = 0; return; }
     if (this.settle(dt)) { this.resolveTimer = 0; return; }
     this.resolveTimer += dt;
     const dying = this.players.find(t => t.alive && t.health <= 0);
@@ -901,6 +1128,12 @@ class Game {
     this.flash = Math.max(0, this.flash - dt * 2.5);
 
     for (const e of this.explosions) e.t += dt;
+    for (const b of this.beams) b.t += dt;
+    this.beams = this.beams.filter(b => b.t < b.dur);
+    for (const f of this.fires) { // flames throw off embers and smoke
+      if (f.air || Math.random() > dt * 5) continue;
+      this.spawn({ type: Math.random() < 0.6 ? 'glow' : 'smoke', x: f.x + rand(-4, 4), y: f.y - 4, vx: rand(-10, 10), vy: -rand(30, 70), life: rand(0.5, 1.2), size: rand(1.2, 3), grow: 1.5, rgb: Math.random() < 0.6 ? [255, rand(110, 190), 40] : [40, 34, 34], alpha: 0.6, windF: 0.5 });
+    }
     this.explosions = this.explosions.filter(e => e.t < e.dur);
 
     const windAcc = this.wind * WIND_SCALE;
@@ -1005,6 +1238,8 @@ class Game {
     this.drawProjectiles(ctx);
     ctx.globalCompositeOperation = 'lighter';
     this.drawExplosions(ctx);
+    this.drawFires(ctx);
+    this.drawBeams(ctx);
     this.drawParticles(ctx, true);
     ctx.globalCompositeOperation = 'source-over';
     this.drawLabels(ctx);
@@ -1199,6 +1434,34 @@ class Game {
       ctx.fillStyle = '#fff';
       ctx.beginPath(); ctx.arc(p.x, p.y, p.kind === 'roll' ? 3.5 : 2.2, 0, TAU); ctx.fill();
     }
+  }
+
+  drawFires(ctx) {
+    for (const f of this.fires) {
+      const k = Math.min(1, f.life / 1.2);
+      const r = (f.air ? 5 : 9) * (0.75 + Math.random() * 0.5) * (0.6 + 0.4 * k);
+      const cy = f.y - (f.air ? 0 : 3);
+      const g = ctx.createRadialGradient(f.x, cy, 0, f.x, cy, r);
+      g.addColorStop(0, `rgba(255,240,180,${(0.9 * k).toFixed(3)})`);
+      g.addColorStop(0.45, `rgba(255,130,30,${(0.55 * k).toFixed(3)})`);
+      g.addColorStop(1, 'rgba(255,60,0,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(f.x, cy, r, 0, TAU); ctx.fill();
+    }
+  }
+
+  drawBeams(ctx) {
+    ctx.save();
+    ctx.lineCap = 'round';
+    for (const b of this.beams) {
+      const k = 1 - b.t / b.dur;
+      const [r, g, bl] = b.rgb;
+      const line = (w, col) => { ctx.strokeStyle = col; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(b.x0, b.y0); ctx.lineTo(b.x1, b.y1); ctx.stroke(); };
+      line(14 * k + 2, `rgba(${r},${g},${bl},${(0.25 * k).toFixed(3)})`);
+      line(6 * k + 1, `rgba(${r},${g},${bl},${(0.7 * k).toFixed(3)})`);
+      line(2 * k + 0.5, `rgba(255,255,255,${(0.95 * k).toFixed(3)})`);
+    }
+    ctx.restore();
   }
 
   drawExplosions(ctx) {
