@@ -15,6 +15,10 @@
     game.fine = e.shiftKey;
     if (e.code === 'KeyM') { UI.toggleMute(); return; }
     if (e.code === 'KeyF') { UI.toggleFullscreen(); return; }
+    if (!document.getElementById('shop').classList.contains('hidden')) {
+      if (e.code === 'ArrowLeft' || e.code === 'KeyQ' || e.code === 'PageUp') { e.preventDefault(); UI.shopPage(-1); return; }
+      if (e.code === 'ArrowRight' || e.code === 'KeyE' || e.code === 'PageDown') { e.preventDefault(); UI.shopPage(1); return; }
+    }
 
     const human = game.humanTurn;
     if (HOLD_KEYS.has(e.code)) {

@@ -36,6 +36,9 @@ const UI = {
     this.$('start-btn').onclick = () => this.startGame();
     this.$('ro-next').onclick = () => this.onRoundNext && this.onRoundNext();
     this.$('shop-done').onclick = () => this.onShopDone && this.onShopDone();
+    this.$('shop-prev').onclick = () => this.shopPage(-1);
+    this.$('shop-next').onclick = () => this.shopPage(1);
+    window.addEventListener('resize', () => { if (this.shopRender && !this.$('shop').classList.contains('hidden')) this.shopRender(); });
     this.bindHud();
     this.bindEdit('hud-angle', 'angle');
     this.bindEdit('hud-power', 'power');
@@ -574,10 +577,12 @@ const UI = {
     this.$('shop-eyebrow').textContent = `Armory · before round ${game.round + 1}`;
     this.$('shop-name').textContent = t.name;
     this.$('shop-name').style.setProperty('--c', t.color);
+    this.shopPageIdx = 0;
     const render = () => {
       this.$('shop-money').textContent = fmtMoney(t.money);
       const grid = this.$('shop-grid');
       grid.innerHTML = '';
+      grid.style.gridAutoRows = '';
       for (const id of SHOP_ORDER) {
         const e = shopEntry(id);
         const card = document.createElement('div');
@@ -594,9 +599,58 @@ const UI = {
         btn.onclick = () => { if (buyItem(t, id)) { Sound.buy(); render(); } };
         grid.appendChild(card);
       }
+      this.paginateShop();
     };
+    this.shopRender = render;
     render();
     this.onShopDone = next;
+  },
+
+  // Split the armory into pages that fit the window instead of scrolling.
+  paginateShop() {
+    const grid = this.$('shop-grid');
+    const panel = grid.closest('.panel');
+    const cards = [...grid.children];
+    const pager = this.$('shop-pager');
+    pager.classList.remove('hidden');
+    grid.style.minHeight = '';
+    const gap = parseFloat(getComputedStyle(grid).rowGap) || 10;
+    const cols = Math.max(1, getComputedStyle(grid).gridTemplateColumns.split(' ').filter(Boolean).length);
+    const cardH = Math.max(1, ...cards.map(c => c.offsetHeight));
+    const avail = window.innerHeight - 48 - (panel.offsetHeight - grid.offsetHeight);
+    const rows = Math.max(1, Math.floor((avail + gap) / (cardH + gap)));
+    const per = cols * rows;
+    const pages = Math.max(1, Math.ceil(cards.length / per));
+    this.shopPages = pages;
+    this.shopPageIdx = clamp(this.shopPageIdx || 0, 0, pages - 1);
+    const p = this.shopPageIdx;
+    grid.style.gridAutoRows = cardH + 'px';
+    cards.forEach((c, i) => { c.style.display = (i >= p * per && i < (p + 1) * per) ? '' : 'none'; });
+    if (pages <= 1) { pager.classList.add('hidden'); return; }
+    // keep the panel the same height on a short last page
+    grid.style.minHeight = (Math.min(rows, Math.ceil(cards.length / cols)) * (cardH + gap) - gap) + 'px';
+    const dots = this.$('shop-dots');
+    dots.innerHTML = '';
+    for (let i = 0; i < pages; i++) {
+      const d = document.createElement('i');
+      if (i === p) d.className = 'on';
+      d.onclick = () => { this.shopPageIdx = i; this.paginateShop(); };
+      dots.appendChild(d);
+    }
+    const label = document.createElement('span');
+    label.className = 'pager-label';
+    label.textContent = `${p + 1} / ${pages}`;
+    dots.appendChild(label);
+    this.$('shop-prev').disabled = p === 0;
+    this.$('shop-next').disabled = p === pages - 1;
+  },
+
+  shopPage(delta) {
+    if (!this.shopPages || this.shopPages <= 1) return;
+    const n = clamp((this.shopPageIdx || 0) + delta, 0, this.shopPages - 1);
+    if (n === this.shopPageIdx) return;
+    this.shopPageIdx = n;
+    this.paginateShop();
   },
 };
 
