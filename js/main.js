@@ -42,6 +42,11 @@
     }
   });
 
+  // Browsers only allow audio after a user gesture: wake it on the first one so the menu music can start.
+  const wake = () => { Sound.init(); window.removeEventListener('pointerdown', wake); window.removeEventListener('keydown', wake); };
+  window.addEventListener('pointerdown', wake);
+  window.addEventListener('keydown', wake);
+
   window.addEventListener('keyup', e => {
     delete game.keys[e.code];
     game.fine = e.shiftKey;
@@ -54,6 +59,7 @@
     last = now;
     if (game.skipping) game.fastForward(); else game.update(dt);
     Net.tick(dt);
+    Music.update(game.state === 'setup');
     game.render();
     UI.updateHUD(game);
     requestAnimationFrame(frame);
