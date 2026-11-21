@@ -53,13 +53,13 @@ const WEAPONS = {
   nuke:     { name: 'Nuke',         price: 11250, bundle: 1, radius: 210, damage: 130, core: 124, color: '#ff4d6d', ai: 10, desc: 'Lethal across a wide zone. Rearranges the landscape — and your enemies.' },
   mirv:     { name: 'MIRV',         price: 6000, bundle: 2, radius: 30,  damage: 50,  color: '#7cd3ff', ai: 7,  behavior: 'mirv', count: 5, desc: 'Splits into five warheads at the top of its arc.' },
   funky:    { name: 'Funky Bomb',   price: 5000, bundle: 2, radius: 36,  damage: 48,  color: '#d58cff', ai: 6,  behavior: 'funky', count: 7, desc: 'Explodes, then sprays bomblets everywhere.' },
-  napalm:   { name: 'Napalm',       price: 5000, bundle: 2, radius: 22,  damage: 20,  color: '#ff8a1f', ai: 6,  behavior: 'napalm', count: 22, desc: 'Splashes burning fuel that runs downhill and pools in valleys.' },
+  napalm:   { name: 'Napalm',       price: 5000, bundle: 2, radius: 22,  damage: 20,  color: '#ff8a1f', ai: 6,  behavior: 'napalm', count: 22, desc: 'Splashes burning fuel that sticks where it lands and spreads along the ground.' },
   leapfrog: { name: 'Leapfrog',     price: 2500, bundle: 3, radius: 26,  damage: 44,  color: '#9cf06a', ai: 4,  behavior: 'leapfrog', bounces: 3, desc: 'Hops forward, exploding three times.' },
   roller:   { name: 'Roller',       price: 2000, bundle: 4, radius: 34,  damage: 62,  color: '#ffd84a', ai: 4,  behavior: 'roller', desc: 'Rolls downhill until it finds a valley — or a tank.' },
-  burrower: { name: 'Burrower',     price: 3000, bundle: 3, radius: 30,  damage: 52,  color: '#d6a35c', ai: 4,  behavior: 'burrow', dig: 260, desc: 'Tunnels through the dirt after it lands, then explodes. The ground above caves in.' },
+  burrower: { name: 'Burrower',     price: 3000, bundle: 3, radius: 90,  damage: 52,  color: '#d6a35c', ai: 4,  behavior: 'burrow', dig: 260, desc: 'Tunnels in a straight line and explodes the moment it passes under an enemy tank. The ground above caves in.' },
   laser:    { name: 'Laser',        price: 7500, bundle: 2, radius: 7,   damage: 60,  color: '#ff3b6b', ai: 7,  behavior: 'laser', desc: 'A straight beam: no gravity, no wind, cuts through terrain. Power sets its length.' },
   dirt:     { name: 'Dirt Ball',    price: 1000, bundle: 5, radius: 42,  damage: 0,   color: '#c08a5a', ai: 0,  behavior: 'dirt', desc: 'Buries things. Good for walls and petty revenge.' },
-  fountain: { name: 'Dirt Fountain', price: 1500, bundle: 3, radius: 18, damage: 0,   color: '#b88352', ai: 0,  behavior: 'fountain', count: 11, desc: 'Erupts into a spray of dirt clods that rain down and bury things.' },
+  fountain: { name: 'Dirt Fountain', price: 1500, bundle: 3, radius: 18, damage: 0,   color: '#b88352', ai: 0,  behavior: 'fountain', count: 24, desc: 'Erupts into a spray of dirt clods that rain down and bury things.' },
   excavator: { name: 'Excavator',   price: 1200, bundle: 3, radius: 80,  damage: 0,   color: '#e8d27a', ai: 0,  behavior: 'excavate', desc: 'Blows away a big chunk of dirt with no blast damage. Dig yourself out — or drop an enemy into a pit.' },
 };
 for (const id in WEAPONS) WEAPONS[id].id = id;

@@ -219,13 +219,22 @@ const Sound = {
     if (s > 0.35) this.tone({ f0: 46, f1: 20, dur: 1.4 + L * 2.4, vol: 0.4 * s, delay: delay + 0.09, bus }); // pressure swell
   },
 
-  fire(size = 0.2, x) {
+  fire(size = 0.2, x, delay = 0) {
     if (!this.ok()) return;
     const s = clamp(size, 0, 1), pan = this.panX(x);
-    this.noiseBurst({ dur: 0.35 + s * 0.4, filter: 'bandpass', f0: 1800, f1: 300 - s * 150, q: 1, vol: 0.35 + s * 0.2, pan, wet: 0.3 });
-    this.tone({ type: 'triangle', f0: 220 - s * 110, f1: 50, dur: 0.25 + s * 0.35, vol: 0.3 + s * 0.25, pan, wet: 0.2 });
-    this.noiseBurst({ dur: 0.05, filter: 'highpass', f0: 2600, f1: 2000, vol: 0.2, pan, wet: 0.25 });
-    this.tone({ type: 'triangle', f0: 140, f1: 40, dur: 0.18 + s * 0.2, vol: 0.3 + s * 0.3, bus: this.lowBus }); // recoil thump
+    this.noiseBurst({ dur: 0.35 + s * 0.4, filter: 'bandpass', f0: 1800, f1: 300 - s * 150, q: 1, vol: 0.35 + s * 0.2, delay, pan, wet: 0.3 });
+    this.tone({ type: 'triangle', f0: 220 - s * 110, f1: 50, dur: 0.25 + s * 0.35, vol: 0.3 + s * 0.25, delay, pan, wet: 0.2 });
+    this.noiseBurst({ dur: 0.05, filter: 'highpass', f0: 2600, f1: 2000, vol: 0.2, delay, pan, wet: 0.25 });
+    this.tone({ type: 'triangle', f0: 140, f1: 40, dur: 0.18 + s * 0.2, vol: 0.3 + s * 0.3, delay, bus: this.lowBus }); // recoil thump
+  },
+
+  /** Dirt fountain: a deep gulp and a gushing spray of earth. */
+  fountain(x) {
+    if (!this.ok()) return;
+    const pan = this.panX(x);
+    this.noiseBurst({ dur: 0.9, filter: 'bandpass', f0: 250, f1: 1400, q: 0.9, vol: 0.4, pan, wet: 0.3 });
+    this.noiseBurst({ dur: 1.3, f0: 900, f1: 80, vol: 0.3, delay: 0.1, pan, wet: 0.3 });
+    this.weight(0.18);
   },
 
   pop(x) {

@@ -198,6 +198,7 @@ class Game {
     this.windMax = lvl.max;
     this.windShift = lvl.shift;
     this.wind = this.windMax ? randInt(-this.windMax, this.windMax) : 0;
+    if (this.dev) { this.windMax = 0; this.wind = 0; } // the test range is always calm
     this.nextTurn();
     const styleName = { gentle: 'Gentle', hilly: 'Hilly', mountains: 'Mountainous', wild: 'Wild' }[this.terrainStyle];
     if (this.dev) UI.toast('Weapon test range', 'Infinite ammo · targets respawn · N for new terrain', 2600);
@@ -431,7 +432,6 @@ class Game {
     while (d < len) {
       x += dx * 2; y += dy * 2; d += 2;
       if (x < -20 || x > W + 20 || y < -600 || y > H + 20) break;
-      if ((n++ & 1) === 0 && this.terrain.isSolid(x, y)) this.terrain.carve(x, y, w.radius);
       for (const p of this.players) {
         if (p !== t && p.alive && !hit.has(p) && p.hitTest(x, y)) {
           hit.add(p);
@@ -443,6 +443,7 @@ class Game {
         }
       }
     }
+    this.terrain.carveBand(m.x, m.y, x, y, w.radius);
     t.lastTrail = [{ x: m.x, y: m.y }, { x, y }];
     this.beams.push({ x0: m.x, y0: m.y, x1: x, y1: y, t: 0, dur: 0.8, rgb: hexToRgb(w.color), w: w.radius / 4 });
     for (let i = 0; i < 30; i++) { // embers along the cut
@@ -641,7 +642,7 @@ class Game {
       q.cleared = true;
       this.projectiles.push(q);
     }
-    Sound.pop(p.x);
+    for (let i = 0; i < n; i++) Sound.fire(p.w.radius / 110, p.x, i * 0.075); // each warhead launches
     for (let i = 0; i < 16; i++) {
       const a = rand(TAU), s = rand(40, 140);
       this.spawn({ type: 'spark', x: p.x, y: p.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: rand(0.2, 0.4), size: 1.4, drag: 2, rgb: [150, 220, 255] });
@@ -668,9 +669,19 @@ class Game {
       return;
     }
     if (b === 'fountain') {
-      this.dirtBlast(hit.x, hit.y, p.radius);
+      // Erupt from just above the ground (spawning inside dirt made the clods land instantly).
+      let sy = Math.round(hit.y);
+      while (sy > 0 && this.terrain.isSolid(hit.x, sy)) sy--;
+      sy -= 3;
+      Sound.fountain(hit.x);
+      const T = this.theme;
+      for (let i = 0; i < 50; i++) {
+        const src = Math.random() < 0.4 ? T.top : T.mid, k = rand(0.7, 1.15);
+        this.spawn({ type: 'debris', x: hit.x + rand(-6, 6), y: sy, vx: rand(-140, 140), vy: -rand(200, 560), life: rand(1.2, 2.2), size: rand(1.5, 3.5), g: 520, rgb: [src[0] * k, src[1] * k, src[2] * k] });
+      }
       for (let i = 0; i < w.count; i++) {
-        const q = this.makeProjectile(hit.x, hit.y - 6, srand(-150, 150), srand(-440, -220), CLOD, p.owner, 'shell');
+        const q = this.makeProjectile(hit.x + srand(-4, 4), sy, srand(-120, 120), srand(-470, -260), CLOD, p.owner, 'shell');
+        q.radius = 18;
         q.cleared = true;
         q.ignoreTank = hit.tank || null; q.ignoreT = hit.tank ? 0.25 : 0;
         this.projectiles.push(q);
@@ -723,12 +734,18 @@ class Game {
     const nx = p.x + p.dx * step, ny = p.y + p.dy * step;
     for (const t of this.players) {
       if (t.hitTest(nx, ny) && (p.cleared || t !== p.owner)) { p.x = nx; p.y = ny; this.burrowBoom(p); return; }
+      if (this.underEnemy(t, nx, ny, p.owner)) { p.x = nx; p.y = ny; this.burrowBoom(p); return; }
     }
     p.x = nx; p.y = ny;
     p.dist -= step;
     this.terrain.carve(nx, ny, 7);
     this.recordTrail(p);
     if (p.dist <= 0 || nx < 0 || nx >= W || ny < 0 || ny >= H - 2) this.burrowBoom(p);
+  }
+
+  /** The burrower goes off as soon as it's directly beneath an enemy tank, at any depth. */
+  underEnemy(t, x, y, owner) {
+    return t !== owner && t.alive && Math.abs(t.x - x) < 14 && y > t.y;
   }
 
   burrowBoom(p) {
@@ -744,7 +761,7 @@ class Game {
     for (let d = 0; d < WEAPONS.burrower.dig; d += 3) {
       x += dx * 3; y += dy * 3;
       if (x < 0 || x >= W || y < 0 || y >= H - 2) break;
-      for (const t of this.players) if (t !== owner && t.hitTest(x, y)) return { x, y, tank: t };
+      for (const t of this.players) if (t !== owner && (t.hitTest(x, y) || this.underEnemy(t, x, y, owner))) return { x, y, tank: t };
     }
     return { x, y, ground: true };
   }
@@ -753,14 +770,18 @@ class Game {
 
   spawnFires(x, y, n, owner, spread) {
     for (let i = 0; i < n; i++) {
-      this.fires.push({ x, y: y - 3, vx: srand(-130, 130) * spread, vy: srand(-260, -60) * spread, air: true, life: srand(4, 6), owner });
+      this.fires.push({ x, y: y - 3, vx: srand(-125, 125) * spread, vy: srand(-240, -60) * spread, air: true, life: srand(4.5, 6.5), owner, gen: 0, spreadT: srand(0.2, 0.5), seed: Math.random() * 100 });
     }
   }
 
-  /** Fixed-step: burning blobs splash out, land, run downhill, pool, and burn tanks they touch. */
+  /**
+   * Fixed-step: burning blobs splash out and stick where they land, then the fire
+   * creeps outward along the ground from there and burns tanks it touches.
+   */
   updateFires(dt) {
     if (!this.fires.length) return;
     const T = this.terrain;
+    const born = [];
     for (const f of this.fires) {
       f.life -= dt;
       if (f.air) {
@@ -769,25 +790,35 @@ class Game {
         if (nx < 0 || nx >= W || ny >= H) { f.life = 0; continue; }
         if (T.isSolid(nx, ny)) {
           f.air = false;
-          f.vx *= 0.25;
-          f.y = T.surfaceY(Math.round(f.x));
+          f.x = Math.round(f.x);
+          f.y = T.surfaceY(f.x);
         } else { f.x = nx; f.y = ny; }
         continue;
       }
-      const l = T.surfaceY(Math.round(f.x - 3)), r = T.surfaceY(Math.round(f.x + 3));
-      f.vx += clamp(r - l, -12, 12) * 10 * dt; // flows toward lower ground (larger y)
-      f.vx *= 1 - 2.5 * dt;
-      f.x = clamp(f.x + f.vx * dt, 0, W - 1);
-      f.y = T.surfaceY(Math.round(f.x));
-      if (f.y >= H) f.life = 0;
+      f.y = T.surfaceY(f.x); // stays put; rides the ground down if it collapses
+      if (f.y >= H) { f.life = 0; continue; }
+      // creep outward to a neighbouring patch of ground that isn't burning yet
+      if (f.gen < 2 && f.life > 2.6) {
+        f.spreadT -= dt;
+        if (f.spreadT <= 0) {
+          f.spreadT = srand(0.45, 0.85);
+          const nx = Math.round(clamp(f.x + (simRandom() < 0.5 ? -1 : 1) * srand(5, 9), 0, W - 1));
+          const ny = T.surfaceY(nx);
+          const ok = ny < H && ny - f.y > -9 && // won't climb a cliff
+            this.fires.length + born.length < 80 &&
+            !this.fires.some(o => !o.air && Math.abs(o.x - nx) < 4) && !born.some(o => Math.abs(o.x - nx) < 4);
+          if (ok) born.push({ x: nx, y: ny, vx: 0, vy: 0, air: false, life: f.life * srand(0.5, 0.7), owner: f.owner, gen: f.gen + 1, spreadT: srand(0.3, 0.6), seed: Math.random() * 100 });
+        }
+      }
     }
+    if (born.length) this.fires.push(...born);
     for (const t of this.players) {
       if (!t.alive) continue;
       let n = 0, by = null;
       for (const f of this.fires) {
         if (!f.air && f.life > 0 && Math.abs(f.x - t.x) < 16 && f.y > t.y - 24 && f.y < t.y + 10) { n++; by = f.owner; }
       }
-      if (n) { t.burn += Math.min(36, 6 * n) * dt; t.burnBy = by; }
+      if (n) { t.burn += Math.min(22, 4 * n) * dt; t.burnBy = by; }
       if (t.burn >= 4 || (t.burn > 0.5 && !n)) { this.damageTank(t, t.burn, t.burnBy, 'napalm', true); t.burn = 0; }
     }
     this.fires = this.fires.filter(f => f.life > 0);
@@ -1164,6 +1195,7 @@ class Game {
 
   isSupported(t) {
     const y = Math.round(t.y);
+    if (y >= H) return true; // bedrock: with every bit of dirt gone, you sit on the floor
     for (let cx = t.x - 7; cx <= t.x + 7; cx++) if (this.terrain.isSolid(cx, y)) return true;
     return false;
   }
@@ -1190,6 +1222,7 @@ class Game {
         t.y += step;
         t.fallDist += step;
         move -= step;
+        if (t.y > H) t.y = H;
         if (this.isSupported(t)) { this.land(t); break; }
         if (t.y > H + 30) { if (t.alive) t.health = 0; t.falling = false; break; }
       }
@@ -1570,18 +1603,47 @@ class Game {
     }
   }
 
+  /** Napalm as flickering flame tongues (drawn in the additive pass). */
   drawFires(ctx) {
+    const t = this.time, lean = clamp(this.wind * 0.06, -5, 5);
     for (const f of this.fires) {
-      const k = Math.min(1, f.life / 1.2);
-      const r = (f.air ? 5 : 9) * (0.75 + Math.random() * 0.5) * (0.6 + 0.4 * k);
-      const cy = f.y - (f.air ? 0 : 3);
-      const g = ctx.createRadialGradient(f.x, cy, 0, f.x, cy, r);
-      g.addColorStop(0, `rgba(255,240,180,${(0.9 * k).toFixed(3)})`);
-      g.addColorStop(0.45, `rgba(255,130,30,${(0.55 * k).toFixed(3)})`);
-      g.addColorStop(1, 'rgba(255,60,0,0)');
-      ctx.fillStyle = g;
-      ctx.beginPath(); ctx.arc(f.x, cy, r, 0, TAU); ctx.fill();
+      const k = Math.min(1, f.life / 1.2, (f.age = (f.age || 0) + 1 / 60) * 4);
+      if (f.air) { // a falling gob of burning fuel with a short tail
+        const g = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, 6);
+        g.addColorStop(0, 'rgba(255,240,180,0.95)');
+        g.addColorStop(0.5, 'rgba(255,140,30,0.6)');
+        g.addColorStop(1, 'rgba(255,60,0,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(f.x, f.y, 6, 0, TAU); ctx.fill();
+        ctx.strokeStyle = 'rgba(255,120,30,0.45)'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(f.x, f.y); ctx.lineTo(f.x - f.vx * 0.03, f.y - f.vy * 0.03); ctx.stroke();
+        continue;
+      }
+      const s = f.seed;
+      const hgt = (11 + 6 * Math.sin(t * 9 + s) + 3 * Math.sin(t * 23 + s * 2)) * (0.45 + 0.55 * k);
+      const wid = 4.5 * (0.6 + 0.4 * k);
+      const sway = Math.sin(t * 6 + s * 1.3) * 2.5 + lean;
+      this.flame(ctx, f.x, f.y + 1, wid * 1.35, hgt * 1.25, sway * 1.2, [255, 70, 10], 0.55 * k);   // outer
+      this.flame(ctx, f.x, f.y + 1, wid * 0.8, hgt * 0.75, sway * 0.8, [255, 190, 60], 0.75 * k);  // middle
+      this.flame(ctx, f.x, f.y + 1, wid * 0.4, hgt * 0.4, sway * 0.5, [255, 250, 210], 0.8 * k);    // core
     }
+  }
+
+  /** One teardrop-shaped flame, base at (x, y), tip swaying sideways. */
+  flame(ctx, x, y, w, h, sway, rgb, a) {
+    if (a <= 0.01 || h < 1) return;
+    const [r, gg, b] = rgb;
+    const g = ctx.createLinearGradient(0, y, 0, y - h);
+    g.addColorStop(0, `rgba(${r},${gg},${b},${a.toFixed(3)})`);
+    g.addColorStop(0.6, `rgba(${r},${gg},${b},${(a * 0.6).toFixed(3)})`);
+    g.addColorStop(1, `rgba(${r},${gg},${b},0)`);
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(x - w, y);
+    ctx.bezierCurveTo(x - w, y - h * 0.45, x + sway * 0.5 - w * 0.4, y - h * 0.7, x + sway, y - h);
+    ctx.bezierCurveTo(x + sway * 0.5 + w * 0.4, y - h * 0.7, x + w, y - h * 0.45, x + w, y);
+    ctx.closePath();
+    ctx.fill();
   }
 
   drawBeams(ctx) {

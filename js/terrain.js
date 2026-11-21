@@ -138,6 +138,28 @@ class Terrain {
   }
 
   carve(cx, cy, r) { this._circle(cx, cy, r, 0); }
+
+  /**
+   * Cut a straight channel of half-width r (the laser). Every column loses exactly the
+   * same number of pixels, so the dirt that drops into it keeps a smooth top instead
+   * of the 1px zig-zag a row of stamped circles would leave.
+   */
+  carveBand(x0, y0, x1, y1, r) {
+    const dx = x1 - x0, dy = y1 - y0, len = Math.hypot(dx, dy) || 1;
+    if (Math.abs(dx / len) < 0.35) { // steep: columns are few, stamped circles are fine
+      for (let d = 0; d <= len; d += 3) this._circle(x0 + dx * d / len, y0 + dy * d / len, r, 0);
+      return;
+    }
+    const slope = dy / dx, h = r * len / Math.abs(dx); // vertical half-thickness of the band
+    const n = Math.max(1, Math.round(2 * h));
+    const xa = Math.max(0, Math.ceil(Math.min(x0, x1))), xb = Math.min(W - 1, Math.floor(Math.max(x0, x1)));
+    for (let x = xa; x <= xb; x++) {
+      const ys = Math.round(y0 + (x - x0) * slope - h);
+      for (let y = Math.max(0, ys), ye = Math.min(H, ys + n); y < ye; y++) this.mask[y * W + x] = 0;
+    }
+    if (xb >= xa) this.markRange(xa, xb, true);
+    this._circle(x1, y1, r, 0); // rounded tip where the beam ends
+  }
   addDirt(cx, cy, r) { this._circle(cx, cy, r, 1); }
 
   _circle(cx, cy, r, val) {
