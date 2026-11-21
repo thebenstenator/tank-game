@@ -3,7 +3,7 @@
 // Logical world size. Height is fixed; width follows the window's aspect ratio
 // (set at the start of each round) so the battlefield fills the screen.
 const WORLD_H = 960;
-const HUD_RESERVE = 84;   // CSS px kept clear at the bottom for the HUD strip
+const HUD_RESERVE = 104;  // CSS px kept clear at the bottom for the HUD strip
 let W = 1280, H = 720;
 function fitWorldToWindow() {
   const aspect = clamp(window.innerWidth / Math.max(1, window.innerHeight - HUD_RESERVE), 1.3, 2.4);
@@ -47,7 +47,7 @@ const WEAPONS = {
   tracer:   { name: 'Tracer',       price: 300,  bundle: 10, radius: 0,  damage: 0,   color: '#9fe8ff', ai: 0,  behavior: 'tracer', desc: 'Harmless. Leaves its path on screen so you can line up the real shot.' },
   missile:  { name: 'Missile',      price: 1500, bundle: 5, radius: 40,  damage: 66,  color: '#ffb14a', ai: 3,  desc: 'A solid all-rounder with a bigger blast.' },
   babynuke: { name: 'Baby Nuke',    price: 4000, bundle: 2, radius: 66,  damage: 110, core: 42, color: '#ff7a3d', ai: 6,  desc: 'Lethal within a tank-width of the target. Leaves a crater worth remembering.' },
-  nuke:     { name: 'Nuke',         price: 9000, bundle: 1, radius: 105, damage: 130, core: 62, color: '#ff4d6d', ai: 10, desc: 'Lethal across a wide zone. Rearranges the landscape — and your enemies.' },
+  nuke:     { name: 'Nuke',         price: 11250, bundle: 1, radius: 210, damage: 130, core: 124, color: '#ff4d6d', ai: 10, desc: 'Lethal across a wide zone. Rearranges the landscape — and your enemies.' },
   mirv:     { name: 'MIRV',         price: 6000, bundle: 2, radius: 30,  damage: 50,  color: '#7cd3ff', ai: 7,  behavior: 'mirv', count: 5, desc: 'Splits into five warheads at the top of its arc.' },
   funky:    { name: 'Funky Bomb',   price: 5000, bundle: 2, radius: 36,  damage: 48,  color: '#d58cff', ai: 6,  behavior: 'funky', count: 7, desc: 'Explodes, then sprays bomblets everywhere.' },
   napalm:   { name: 'Napalm',       price: 5000, bundle: 2, radius: 22,  damage: 20,  color: '#ff8a1f', ai: 6,  behavior: 'napalm', count: 22, desc: 'Splashes burning fuel that runs downhill and pools in valleys.' },
@@ -69,27 +69,21 @@ const ITEMS = {
   parachute: { name: 'Parachute', price: 1200, bundle: 2, color: '#f2f2f2', desc: 'Opens automatically when you fall. No fall damage.' },
 };
 
-// How a tank goes out when destroyed. Weapons with a signature death always cause it
-// (DEATH_BY_WEAPON); anything else (Baby Missile, Missile, falls, chain reactions) picks
-// from the effects with a weight, at those relative odds. Most can hurt anyone parked nearby.
+// How a destroyed tank goes out. Any weapon can cause any death; weight = how often.
+// The tame ones are common, the big chain-reaction ones are rare treats.
 const DEATH_EFFECTS = [
-  { id: 'fizzle',   name: 'Fizzle',        label: 'FIZZLED',        weight: 14 },
   { id: 'blast',    name: 'Blast',         label: 'DESTROYED',      weight: 30 },
-  { id: 'bigboom',  name: 'Big boom',      label: 'KABOOM!',        weight: 18 },
-  { id: 'shrapnel', name: 'Shrapnel',      label: 'SHRAPNEL!',      weight: 15 },
-  { id: 'cookoff',  name: 'Ammo cook-off', label: 'AMMO COOK-OFF!', weight: 14 },
-  { id: 'meltdown', name: 'Meltdown',      label: 'MELTDOWN!',      weight: 9 },
-  { id: 'funky',    name: 'Funky',         label: 'FUNKY!',         weight: 0 },
-  { id: 'runaway',  name: 'Loose turret',  label: 'LOOSE TURRET!',  weight: 0 },
-  { id: 'inferno',  name: 'Inferno',       label: 'INFERNO!',       weight: 0 },
-  { id: 'vaporize', name: 'Vaporized',     label: 'VAPORIZED',      weight: 0 },
-  { id: 'sinkhole', name: 'Sinkhole',      label: 'SINKHOLE!',      weight: 0 },
+  { id: 'fizzle',   name: 'Fizzle',        label: 'FIZZLED',        weight: 14 },
+  { id: 'vaporize', name: 'Vaporized',     label: 'VAPORIZED',      weight: 10 },
+  { id: 'shrapnel', name: 'Shrapnel',      label: 'SHRAPNEL!',      weight: 11 },
+  { id: 'cookoff',  name: 'Ammo cook-off', label: 'AMMO COOK-OFF!', weight: 10 },
+  { id: 'inferno',  name: 'Inferno',       label: 'INFERNO!',       weight: 8 },
+  { id: 'runaway',  name: 'Loose turret',  label: 'LOOSE TURRET!',  weight: 7 },
+  { id: 'sinkhole', name: 'Sinkhole',      label: 'SINKHOLE!',      weight: 6 },
+  { id: 'funky',    name: 'Funky',         label: 'FUNKY!',         weight: 5 },
+  { id: 'bigboom',  name: 'Big boom',      label: 'KABOOM!',        weight: 5 },
+  { id: 'meltdown', name: 'Meltdown',      label: 'MELTDOWN!',      weight: 2 },
 ];
-const CLASSIC_DEATHS = DEATH_EFFECTS.filter(e => e.weight > 0);
-const DEATH_BY_WEAPON = {
-  babynuke: 'bigboom', nuke: 'meltdown', mirv: 'shrapnel', funky: 'funky', leapfrog: 'cookoff',
-  roller: 'runaway', napalm: 'inferno', laser: 'vaporize', burrower: 'sinkhole',
-};
 const SHRAPNEL = { id: 'shrapnel', name: 'Shrapnel', radius: 20, damage: 26, color: '#ffb870' };
 
 const SHOP_ORDER =[...WEAPON_ORDER.filter(id => WEAPONS[id].price > 0), 'shield', 'parachute'];

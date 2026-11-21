@@ -591,7 +591,6 @@ const UI = {
           `<div class="card-top"><span class="wdot" style="--c:${e.color}"></span><span class="card-name">${e.name}</span>` +
           `<span class="owned">Owned <b>${t.inventory[id] || 0}</b></span></div>` +
           `<p>${e.desc}</p>` +
-          (DEATH_BY_WEAPON[id] ? `<p class="sig">☠ Victims go out with: ${DEATH_EFFECTS.find(d => d.id === DEATH_BY_WEAPON[id]).name}</p>` : '') +
           `<div class="card-foot"><span class="price">${fmtMoney(e.price)} <small>for ${e.bundle}</small></span>` +
           `<button class="btn small">Buy</button></div>`;
         const btn = card.querySelector('button');

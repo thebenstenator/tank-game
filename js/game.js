@@ -34,7 +34,6 @@ class Tank {
     this.lastTrail = null;
     this.lastShot = null;
     this.lastHitBy = null;
-    this.lastHitWeapon = null;
     this.burn = 0;
     this.weapon = 'baby';
     this.angle = 60;
@@ -83,6 +82,7 @@ class Game {
     this.timers = [];
     this.fires = [];   // burning napalm blobs (part of the simulation)
     this.beams = [];   // laser beams (visual only)
+    this.clouds = [];  // mushroom clouds (visual only)
     this.dust = [];
     this.keys = {};
     this.fine = false;
@@ -150,6 +150,7 @@ class Game {
   clearEffects() {
     this.fires = [];
     this.beams = [];
+    this.clouds = [];
     this.projectiles = [];
     this.explosions = [];
     this.particles = [];
@@ -298,6 +299,7 @@ class Game {
     this.skipping = false;
     this.particles = [];
     this.explosions = [];
+    this.clouds = [];
     this.floaters = [];
     this.shake = 0;
     this.flash = 0;
@@ -641,6 +643,7 @@ class Game {
     if (b === 'excavate') { this.excavate(hit.x, hit.y, p.radius); return; }
 
     this.explode(hit.x, hit.y, p.radius, p.damage, p.owner, { core: p.core, weapon: w.id });
+    if (w.id === 'nuke') { this.nukeCloud(hit.x, hit.y, 72); if (Sound.ok()) Sound.weight(1, 0.3); }
 
     if (b === 'napalm') {
       this.spawnFires(hit.x, hit.y, w.count, p.owner, 1);
@@ -866,7 +869,7 @@ class Game {
     Sound.thud(x);
   }
 
-  /** weapon: id of what dealt it (picks the death effect). quiet: no clank (napalm burns tick often). */
+  /** weapon: id of what dealt it. quiet: no clank (napalm burns tick often). */
   damageTank(t, amount, by, weapon = null, quiet = false) {
     if (!t.alive || amount <= 0) return;
     if (t.shield > 0) {
@@ -886,7 +889,6 @@ class Game {
     const before = t.health;
     t.health = Math.max(0, t.health - amount);
     const dealt = before - t.health;
-    if (dealt > 0) t.lastHitWeapon = weapon;
     if (!quiet) Sound.clank(t.x, dealt / 60);
     if (by && by !== t) by.money += Math.round(dealt * 15);
     if (by) t.lastHitBy = by;
@@ -903,8 +905,7 @@ class Game {
     // Collateral damage from the death blast is credited to whoever caused it.
     const by = k || t;
     const x = t.x, y = t.y - 6;
-    const sig = DEATH_BY_WEAPON[t.lastHitWeapon];
-    const fx = (sig && DEATH_EFFECTS.find(e => e.id === sig)) || weightedPick(CLASSIC_DEATHS, simRandom);
+    const fx = weightedPick(DEATH_EFFECTS, simRandom);
     this.floaters.push({ x, y: t.y - 44, text: fx.label, rgb: [255, 255, 255], t: 0, dur: 1.8, size: fx.id === 'meltdown' ? 18 : 14 });
 
     switch (fx.id) {
@@ -960,7 +961,7 @@ class Game {
         }
         this.schedule(charge, () => {
           this.explode(x, y, 115, 100, by);
-          this.mushroom(x, y);
+          this.nukeCloud(x, y, 44);
           this.tankSparks(t, 90);
           this.flash = 1;
         });
@@ -1023,16 +1024,103 @@ class Game {
     }
   }
 
-  mushroom(x, y) {
-    for (let i = 0; i < 45; i++) { // stem
-      this.spawn({ type: 'smoke', x: x + rand(-10, 10), y: y - rand(0, 20), vx: rand(-10, 10), vy: -rand(60, 210), drag: 1.2, life: rand(2.5, 3.6), size: rand(9, 16), grow: 1.4, rgb: [70, 50, 42], alpha: 0.6, windF: 0.25 });
+  /** An animated mushroom cloud: a rising fireball that rolls into a cap on a stem, with a dust surge along the ground. R = cap size in px. */
+  nukeCloud(x, y, R) {
+    const puffs = [], stem = [], base = [];
+    for (let i = 0; i < 30; i++) puffs.push({ a: i / 30 * TAU + rand(-0.1, 0.1), r: rand(0.34, 0.52), d: rand(0.7, 1.05), sh: rand(0.8, 1.1) });
+    for (let i = 0; i < 16; i++) stem.push({ f: i / 15, r: rand(0.8, 1.25), ph: rand(TAU) });
+    for (let i = 0; i < 20; i++) base.push({ dir: i % 2 ? 1 : -1, v: rand(0.35, 1), r: rand(0.6, 1.15), h: rand(0, 1) });
+    this.clouds.push({ x, y, R, t: 0, dur: 9, drift: 0, puffs, stem, base });
+    this.shake = Math.min(34, this.shake + R / 3);
+    this.flash = 1;
+  }
+
+  updateClouds(dt) {
+    for (const c of this.clouds) {
+      c.t += dt;
+      c.drift += this.wind * WIND_SCALE * dt * 0.05 * Math.min(1, c.t / 2);
     }
-    for (let i = 0; i < 36; i++) { // cap
-      const a = rand(TAU), d = rand(10, 55);
-      this.spawn({ type: 'smoke', x: x + Math.cos(a) * d, y: y - rand(115, 160) + Math.sin(a) * d * 0.35, vx: Math.cos(a) * rand(25, 70), vy: -rand(10, 35), drag: 0.8, life: rand(2.8, 3.8), size: rand(14, 24), grow: 1.4, rgb: [92, 60, 48], alpha: 0.55, windF: 0.3 });
+    this.clouds = this.clouds.filter(c => c.t < c.dur);
+  }
+
+  cloudShape(c) {
+    const p = c.t;
+    const rise = 1 - Math.exp(-p / 1.5);
+    const grow = 1 - Math.exp(-p / 1.1);
+    const capR = c.R * (0.4 + 0.8 * grow);
+    return {
+      p, rise,
+      cx: c.x + c.drift, top: c.y - c.R * 3.4 * rise - c.R * 0.3,
+      rx: capR * (1 + 0.65 * rise), ry: capR * (0.8 - 0.2 * rise), capR,
+      heat: Math.max(0, 1 - p / 2.8),
+      fade: Math.min(1, (c.dur - p) / 3, p / 0.15),
+    };
+  }
+
+  /** A soft round puff of smoke. */
+  puff(ctx, x, y, r, rgb, a) {
+    if (a <= 0.005 || r <= 0.5) return;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    const s = `${rgb[0] | 0},${rgb[1] | 0},${rgb[2] | 0}`;
+    g.addColorStop(0, `rgba(${s},${a.toFixed(3)})`);
+    g.addColorStop(0.55, `rgba(${s},${(a * 0.8).toFixed(3)})`);
+    g.addColorStop(1, `rgba(${s},0)`);
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();
+  }
+
+  drawClouds(ctx) {
+    const HOT = [255, 150, 60], SMOKE = [96, 74, 64], DUST = [118, 100, 86];
+    const col = (heat, shade) => [0, 1, 2].map(i => (SMOKE[i] + (HOT[i] - SMOKE[i]) * heat) * shade);
+    for (const c of this.clouds) {
+      const s = this.cloudShape(c), { p, cx, top, rx, ry, heat, fade } = s;
+      const hk = Math.pow(heat, 1.4);
+      // dust surge rolling out along the ground
+      const spread = 1 - Math.exp(-p / 1.6);
+      for (const b of c.base) {
+        const bx = c.x + c.drift * 0.3 + b.dir * c.R * (0.3 + 2.6 * spread) * b.v;
+        this.puff(ctx, bx, c.y - c.R * 0.18 * b.h * (0.5 + spread), c.R * 0.4 * b.r * (0.5 + spread), DUST, 0.5 * fade * (1 - spread * 0.4));
+      }
+      // stem, from the ground up into the cap
+      for (const st of c.stem) {
+        const f = st.f;
+        const sx = c.x + c.drift * 0.25 + (cx - c.x - c.drift * 0.25) * f + Math.sin(p * 1.4 + st.ph) * c.R * 0.04;
+        const sy = c.y + (top + ry * 0.4 - c.y) * f;
+        const w = c.R * (0.2 + 0.16 * (1 - f) + 0.1 * f * f) * st.r;
+        this.puff(ctx, sx, sy, w, col(hk * (0.4 + 0.6 * f), 0.8 + 0.15 * f), 0.75 * fade * Math.min(1, s.rise * 2.5));
+      }
+      // cap: puffs rolling round a flattened torus, back ones first
+      const roll = p * 0.7;
+      const pts = c.puffs.map(q => {
+        const ang = q.a + roll, sn = Math.sin(ang);
+        return { x: cx + Math.cos(ang) * rx * q.d, y: top + sn * ry * 0.5 * q.d, r: s.capR * q.r * (0.9 + 0.2 * (sn + 1) / 2), sn, sh: q.sh };
+      }).sort((m, n) => m.sn - n.sn);
+      this.puff(ctx, cx, top - ry * 0.25, s.capR * 0.95, col(hk, 0.85), 0.85 * fade); // dome
+      for (const q of pts) this.puff(ctx, q.x, q.y, q.r, col(hk * (0.6 + 0.4 * (q.sn + 1) / 2), q.sh * (0.72 + 0.28 * (q.sn + 1) / 2)), 0.85 * fade);
     }
-    for (let i = 0; i < 40; i++) { // glowing embers in the cloud
-      this.spawn({ type: 'glow', x: x + rand(-40, 40), y: y - rand(60, 150), vx: rand(-30, 30), vy: -rand(10, 50), drag: 0.8, life: rand(1, 2.2), size: rand(1.5, 3), rgb: [255, rand(120, 200), 60], windF: 0.3 });
+  }
+
+  /** Hot glow inside the cloud while it's young (drawn in the additive pass). */
+  drawCloudGlow(ctx) {
+    for (const c of this.clouds) {
+      const s = this.cloudShape(c);
+      if (s.heat <= 0) continue;
+      const h = s.heat * s.heat;
+      const g = ctx.createRadialGradient(s.cx, s.top, 0, s.cx, s.top, s.rx * 1.2);
+      g.addColorStop(0, `rgba(255,220,150,${(0.7 * h).toFixed(3)})`);
+      g.addColorStop(0.5, `rgba(255,120,40,${(0.35 * h).toFixed(3)})`);
+      g.addColorStop(1, 'rgba(200,40,0,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.ellipse(s.cx, s.top, s.rx * 1.2, s.ry * 1.3, 0, 0, TAU); ctx.fill();
+      // glowing column
+      const sg = ctx.createLinearGradient(0, c.y, 0, s.top);
+      sg.addColorStop(0, `rgba(255,160,70,${(0.35 * h).toFixed(3)})`);
+      sg.addColorStop(1, `rgba(255,200,120,${(0.15 * h).toFixed(3)})`);
+      ctx.fillStyle = sg;
+      const w = c.R * 0.18;
+      ctx.beginPath();
+      ctx.moveTo(c.x + c.drift * 0.25 - w * 1.4, c.y); ctx.lineTo(s.cx - w, s.top); ctx.lineTo(s.cx + w, s.top); ctx.lineTo(c.x + c.drift * 0.25 + w * 1.4, c.y);
+      ctx.fill();
     }
   }
 
@@ -1128,6 +1216,7 @@ class Game {
     this.flash = Math.max(0, this.flash - dt * 2.5);
 
     for (const e of this.explosions) e.t += dt;
+    this.updateClouds(dt);
     for (const b of this.beams) b.t += dt;
     this.beams = this.beams.filter(b => b.t < b.dur);
     for (const f of this.fires) { // flames throw off embers and smoke
@@ -1235,9 +1324,11 @@ class Game {
     this.drawGuides(ctx);
     for (const t of this.players) this.drawTank(ctx, t);
     this.drawParticles(ctx, false);
+    this.drawClouds(ctx);
     this.drawProjectiles(ctx);
     ctx.globalCompositeOperation = 'lighter';
     this.drawExplosions(ctx);
+    this.drawCloudGlow(ctx);
     this.drawFires(ctx);
     this.drawBeams(ctx);
     this.drawParticles(ctx, true);

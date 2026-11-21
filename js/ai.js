@@ -24,7 +24,8 @@ const AI = {
 
   pickWeapon(t, target) {
     const lower = target.y > t.y + 40;
-    const pool = WEAPON_ORDER.filter(id => id !== 'baby' && WEAPONS[id].ai > 0 && t.ammo(id) > 0 && (id !== 'roller' || lower));
+    const pool = WEAPON_ORDER.filter(id => id !== 'baby' && WEAPONS[id].ai > 0 && t.ammo(id) > 0 && (id !== 'roller' || lower) &&
+      Math.abs(target.x - t.x) > WEAPONS[id].radius + 30); // never pick a blast that would reach us
     if (!pool.length) return 'baby';
     if (t.ai === 'easy' && Math.random() < 0.55) return 'baby';
     if (t.ai === 'hard') {

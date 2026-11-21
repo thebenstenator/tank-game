@@ -46,8 +46,8 @@ The HUD along the bottom has buttons for all of these. Once every human is knock
 - Terrain is destructible and loose dirt falls. Tanks that fall take damage unless they have a parachute.
 - Wind is a setting: None, Light (up to 15), Moderate (30, default), Strong (50) or Gale (75). Around 20 you have to aim for it; 60+ is chaos. It can drift between turns.
 - Terrain style is a setting: Gentle, Hilly, Mountainous, Wild (default — jagged peaks near the ceiling, pits near the floor) or Random per round.
-- Weapons: Baby Missile (free), Missile, Baby Nuke, Nuke, MIRV, Funky Bomb, Napalm (burning fuel that runs downhill), Leapfrog, Roller, Burrower (tunnels through dirt), Laser (straight beam through terrain; power sets its length), plus utilities: Tracer (shows a path, no damage), Dirt Ball, Dirt Fountain (sprays burying clods) and Excavator (clears dirt).
-- How a tank dies depends on what killed it. Signature deaths: Baby Nuke → big boom, Nuke → meltdown with mushroom cloud, MIRV → shrapnel, Funky Bomb → rainbow bomblets, Leapfrog → ammo cook-off, Roller → the turret rolls downhill as a bomb, Napalm → inferno that spills more fire, Laser → vaporized (almost no splash), Burrower → sinkhole that can swallow neighbours. Baby Missile, Missile, falls and chain reactions pick a random classic death (fizzle, blast, big boom, shrapnel, cook-off, meltdown). Most deaths can damage or chain-kill nearby tanks; collateral kills are credited to whoever destroyed the first tank.
+- Weapons: Baby Missile (free), Missile, Baby Nuke, Nuke (huge blast and a mushroom cloud), MIRV, Funky Bomb, Napalm (burning fuel that runs downhill), Leapfrog, Roller, Burrower (tunnels through dirt), Laser (straight beam through terrain; power sets its length), plus utilities: Tracer (shows a path, no damage), Dirt Ball, Dirt Fountain (sprays burying clods) and Excavator (clears dirt).
+- Destroyed tanks go out in one of eleven ways, whatever hit them: plain blasts, fizzles and vaporizing are common; shrapnel, ammo cook-offs, infernos, a runaway turret, sinkholes and funky bomblets turn up less often; a big boom is rare and a full meltdown with a mushroom cloud is rarer still. Most deaths can damage or chain-kill nearby tanks; collateral kills are credited to whoever destroyed the first tank.
 - Earn cash for damage dealt, kills and round wins; spend it in the armory between rounds.
 
 ## Code layout
@@ -59,4 +59,5 @@ The HUD along the bottom has buttons for all of these. Once every human is knock
 - `js/ai.js` — CPU aiming (simulates shots with the real physics) and shopping
 - `js/ui.js` — menus, HUD, armory, standings
 - `js/audio.js` — synthesized sound effects (WebAudio)
+- `js/music.js` — the menu march, played live from a little score
 - `js/net.js` — online play: rooms, host/guest messages, snapshots
