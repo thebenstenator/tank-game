@@ -45,7 +45,7 @@ class Tank {
 
   // Damage still costs power, but gently enough that a wounded tank can fight back.
   get maxPower() { return Math.round(500 + Math.max(0, this.health) * 5); }
-  ammo(id) { return id === 'baby' ? Infinity : (this.inventory[id] || 0); }
+  ammo(id) { return id === 'baby' || this.infinite ? Infinity : (this.inventory[id] || 0); }
 
   muzzle(angle = this.angle) {
     const a = angle * DEG;
@@ -173,9 +173,12 @@ class Game {
     }
   }
 
-  startMatch(defs, settings) {
+  /** dev: the weapon test range — player 0 has infinite everything, the rest are targets that never take a turn. */
+  startMatch(defs, settings, dev = false) {
     this.settings = settings;
+    this.dev = dev;
     this.players = defs.map((d, i) => new Tank(d, i, settings.money));
+    if (dev) this.players[0].infinite = true;
     this.round = 0;
     this.startRound();
   }
@@ -188,7 +191,7 @@ class Game {
     this.setTheme(theme, this.settings.terrain);
     this.players.forEach(p => p.resetForRound());
     this.placeTanks();
-    this.order = shuffle(this.players.slice());
+    this.order = this.dev ? [this.players[0]] : shuffle(this.players.slice());
     this.turnPos = -1;
     this.turnCount = 0;
     const lvl = WIND_LEVELS[this.settings.wind] || WIND_LEVELS.none;
@@ -197,7 +200,8 @@ class Game {
     this.wind = this.windMax ? randInt(-this.windMax, this.windMax) : 0;
     this.nextTurn();
     const styleName = { gentle: 'Gentle', hilly: 'Hilly', mountains: 'Mountainous', wild: 'Wild' }[this.terrainStyle];
-    UI.toast(`Round ${this.round} of ${this.settings.rounds}`, `${theme.name} · ${styleName} terrain`, 2200);
+    if (this.dev) UI.toast('Weapon test range', 'Infinite ammo · targets respawn · N for new terrain', 2600);
+    else UI.toast(`Round ${this.round} of ${this.settings.rounds}`, `${theme.name} · ${styleName} terrain`, 2200);
   }
 
   placeTanks() {
@@ -246,9 +250,36 @@ class Game {
   endTurn() {
     // Online guests don't decide what happens next: wait for the host's word.
     if (Net.isClient) { this.state = 'netwait'; return; }
+    if (this.dev) { this.devRespawn(); this.nextTurn(); return; }
     const alive = this.players.filter(p => p.alive);
     if (alive.length <= 1) { this.finishRound(alive[0] || null); return; }
     this.nextTurn();
+  }
+
+  /** Test range: bring destroyed tanks back and top the shooter up. */
+  devRespawn() {
+    for (const p of this.players) {
+      if (p.alive && p.health > 0 && p.y <= H) continue;
+      p.alive = true;
+      p.health = 100;
+      p.burn = 0;
+      p.falling = false; p.vy = 0; p.fallDist = 0; p.parachuting = false;
+      const sy = this.terrain.surfaceY(p.x);
+      p.y = sy >= H - 24 ? this.terrain.flatten(p.x, 16) : sy;
+    }
+    const me = this.players[0];
+    me.health = 100;
+    me.inventory.shield = 99;
+    me.inventory.parachute = 99;
+  }
+
+  /** Test range: fresh terrain and theme, same tanks. */
+  devNewMap() {
+    if (!this.dev || this.state !== 'aim') return;
+    const keep = this.players[0].weapon;
+    this.startRound();
+    this.players[0].weapon = keep;
+    this.devRespawn();
   }
 
   /** stats (online guests): the host's money/wins/kills for every tank. */
@@ -413,7 +444,7 @@ class Game {
       }
     }
     t.lastTrail = [{ x: m.x, y: m.y }, { x, y }];
-    this.beams.push({ x0: m.x, y0: m.y, x1: x, y1: y, t: 0, dur: 0.8, rgb: hexToRgb(w.color) });
+    this.beams.push({ x0: m.x, y0: m.y, x1: x, y1: y, t: 0, dur: 0.8, rgb: hexToRgb(w.color), w: w.radius / 4 });
     for (let i = 0; i < 30; i++) { // embers along the cut
       const f = Math.random();
       this.spawn({ type: 'glow', x: m.x + (x - m.x) * f, y: m.y + (y - m.y) * f, vx: rand(-20, 20), vy: rand(-40, 0), life: rand(0.4, 1), size: rand(1.2, 2.2), rgb: [255, 90, 140] });
@@ -437,6 +468,12 @@ class Game {
     this.time += dt;
     if (!this.terrain) return;
     this.settling = false;
+    if (this.terrain.changed) { // fresh damage: hold everything in place for a beat
+      this.terrain.changed = false;
+      this.settleHold = SETTLE_DELAY;
+      this.dirtV = DIRT_FALL.v0;
+    }
+    if (this.settleHold > 0) this.settleHold -= dt;
 
     if (this.state === 'aim') this.updateAim(dt);
     this.updateTimers(dt);
@@ -643,7 +680,7 @@ class Game {
     if (b === 'excavate') { this.excavate(hit.x, hit.y, p.radius); return; }
 
     this.explode(hit.x, hit.y, p.radius, p.damage, p.owner, { core: p.core, weapon: w.id });
-    if (w.id === 'nuke') { this.nukeCloud(hit.x, hit.y, 72); if (Sound.ok()) Sound.weight(1, 0.3); }
+    if (w.id === 'nuke') { this.nukeCloud(hit.x, hit.y, 72); Sound.nuke(hit.x); }
 
     if (b === 'napalm') {
       this.spawnFires(hit.x, hit.y, w.count, p.owner, 1);
@@ -962,6 +999,7 @@ class Game {
         this.schedule(charge, () => {
           this.explode(x, y, 115, 100, by);
           this.nukeCloud(x, y, 44);
+          Sound.nuke(x, 0.6);
           this.tankSparks(t, 90);
           this.flash = 1;
         });
@@ -1145,7 +1183,7 @@ class Game {
         t.parachuting = true;
         Sound.chute(t.x);
       }
-      t.vy = t.parachuting ? 70 : Math.min(t.vy + GRAVITY * 1.4 * dt, 600);
+      t.vy = t.parachuting ? 55 : Math.min(t.vy + GRAVITY * 0.9 * dt, 380);
       let move = t.vy * dt;
       while (move > 0) {
         const step = Math.min(1, move);
@@ -1177,8 +1215,13 @@ class Game {
   }
 
   settle(dt) {
-    const passes = clamp(Math.round(dt * 300), 1, 10);
-    const moved = this.terrain.settleStep(passes);
+    if (this.settleHold > 0) return this.terrain.anyUnsettled || this.players.some(t => t.y <= H + 30 && !this.isSupported(t));
+    this.dirtV = Math.min(DIRT_FALL.max, (this.dirtV || DIRT_FALL.v0) + DIRT_FALL.acc * dt);
+    this.dirtAcc = (this.dirtAcc || 0) + this.dirtV * dt;
+    const passes = Math.min(10, Math.floor(this.dirtAcc));
+    this.dirtAcc -= passes;
+    const moved = passes > 0 ? this.terrain.settleStep(passes) : this.terrain.anyUnsettled;
+    if (!this.terrain.anyUnsettled) { this.dirtV = DIRT_FALL.v0; this.dirtAcc = 0; }
     if (moved) this.settling = true;
     const falling = this.updateTankFalls(dt);
     return moved || falling;
@@ -1548,9 +1591,10 @@ class Game {
       const k = 1 - b.t / b.dur;
       const [r, g, bl] = b.rgb;
       const line = (w, col) => { ctx.strokeStyle = col; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(b.x0, b.y0); ctx.lineTo(b.x1, b.y1); ctx.stroke(); };
-      line(14 * k + 2, `rgba(${r},${g},${bl},${(0.25 * k).toFixed(3)})`);
-      line(6 * k + 1, `rgba(${r},${g},${bl},${(0.7 * k).toFixed(3)})`);
-      line(2 * k + 0.5, `rgba(255,255,255,${(0.95 * k).toFixed(3)})`);
+      const bw = b.w || 1;
+      line((14 * k + 2) * bw, `rgba(${r},${g},${bl},${(0.25 * k).toFixed(3)})`);
+      line((6 * k + 1) * bw, `rgba(${r},${g},${bl},${(0.7 * k).toFixed(3)})`);
+      line((2 * k + 0.5) * bw, `rgba(255,255,255,${(0.95 * k).toFixed(3)})`);
     }
     ctx.restore();
   }

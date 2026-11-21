@@ -133,7 +133,7 @@ class Terrain {
     }
     if (x1 >= x0) {
       this.anyDirty = true;
-      if (unsettle) this.anyUnsettled = true;
+      if (unsettle) { this.anyUnsettled = true; this.changed = true; }
     }
   }
 

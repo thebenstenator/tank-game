@@ -16,6 +16,9 @@ function setWorldSize(w, h) {
   // Full power on flat ground with no wind carries ~1.6 field widths, whatever the window shape.
   MUZZLE_MAX = Math.sqrt(RANGE_FACTOR * W * GRAVITY);
 }
+// Destroyed terrain hangs for a moment so you can see the hole, then falls, speeding up.
+const SETTLE_DELAY = 0.8;      // s
+const DIRT_FALL = { v0: 35, acc: 320, max: 210 }; // px/s, px/s², px/s
 const GRAVITY = 260;        // px/s²
 const RANGE_FACTOR = 1.6;
 let MUZZLE_MAX = 720;       // muzzle speed (px/s) at power 1000; set by fitWorldToWindow
@@ -54,7 +57,7 @@ const WEAPONS = {
   leapfrog: { name: 'Leapfrog',     price: 2500, bundle: 3, radius: 26,  damage: 44,  color: '#9cf06a', ai: 4,  behavior: 'leapfrog', bounces: 3, desc: 'Hops forward, exploding three times.' },
   roller:   { name: 'Roller',       price: 2000, bundle: 4, radius: 34,  damage: 62,  color: '#ffd84a', ai: 4,  behavior: 'roller', desc: 'Rolls downhill until it finds a valley — or a tank.' },
   burrower: { name: 'Burrower',     price: 3000, bundle: 3, radius: 30,  damage: 52,  color: '#d6a35c', ai: 4,  behavior: 'burrow', dig: 260, desc: 'Tunnels through the dirt after it lands, then explodes. The ground above caves in.' },
-  laser:    { name: 'Laser',        price: 7500, bundle: 2, radius: 4,   damage: 60,  color: '#ff3b6b', ai: 7,  behavior: 'laser', desc: 'A straight beam: no gravity, no wind, cuts through terrain. Power sets its length.' },
+  laser:    { name: 'Laser',        price: 7500, bundle: 2, radius: 7,   damage: 60,  color: '#ff3b6b', ai: 7,  behavior: 'laser', desc: 'A straight beam: no gravity, no wind, cuts through terrain. Power sets its length.' },
   dirt:     { name: 'Dirt Ball',    price: 1000, bundle: 5, radius: 42,  damage: 0,   color: '#c08a5a', ai: 0,  behavior: 'dirt', desc: 'Buries things. Good for walls and petty revenge.' },
   fountain: { name: 'Dirt Fountain', price: 1500, bundle: 3, radius: 18, damage: 0,   color: '#b88352', ai: 0,  behavior: 'fountain', count: 11, desc: 'Erupts into a spray of dirt clods that rain down and bury things.' },
   excavator: { name: 'Excavator',   price: 1200, bundle: 3, radius: 80,  damage: 0,   color: '#e8d27a', ai: 0,  behavior: 'excavate', desc: 'Blows away a big chunk of dirt with no blast damage. Dig yourself out — or drop an enemy into a pit.' },

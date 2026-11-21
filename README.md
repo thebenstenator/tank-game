@@ -38,12 +38,14 @@ Things to know:
 
 The HUD along the bottom has buttons for all of these. Once every human is knocked out of a round, a **Skip to end** button fast-forwards the CPUs to the result.
 
+**Weapon test range** (button under Start on the local setup screen): you get infinite ammo of everything against five target tanks that never take a turn. Destroyed targets respawn after each shot, N rolls new terrain, and the menu button leaves.
+
 ## Rules
 
 - 2–6 tanks, any mix of humans (hot-seat) and CPUs (Easy / Normal / Hard).
 - Range scales with power (500 goes about half as far as 1000), and full power carries about 1.6 field widths on flat ground.
 - Damage lowers max power (500 + health × 5), so wounded tanks shoot shorter but can still fight back.
-- Terrain is destructible and loose dirt falls. Tanks that fall take damage unless they have a parachute.
+- Terrain is destructible. A fresh hole holds for a moment before the loose dirt above it starts to fall. Tanks that fall take damage unless they have a parachute.
 - Wind is a setting: None, Light (up to 15), Moderate (30, default), Strong (50) or Gale (75). Around 20 you have to aim for it; 60+ is chaos. It can drift between turns.
 - Terrain style is a setting: Gentle, Hilly, Mountainous, Wild (default — jagged peaks near the ceiling, pits near the floor) or Random per round.
 - Weapons: Baby Missile (free), Missile, Baby Nuke, Nuke (huge blast and a mushroom cloud), MIRV, Funky Bomb, Napalm (burning fuel that runs downhill), Leapfrog, Roller, Burrower (tunnels through dirt), Laser (straight beam through terrain; power sets its length), plus utilities: Tracer (shows a path, no damage), Dirt Ball, Dirt Fountain (sprays burying clods) and Excavator (clears dirt).

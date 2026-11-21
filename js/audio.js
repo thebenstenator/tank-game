@@ -187,13 +187,14 @@ const Sound = {
 
   boom(size, x) {
     if (!this.ok()) return;
-    const s = clamp(size, 0, 1), pan = this.panX(x), wet = 0.25 + s * 0.45;
-    this.noiseBurst({ dur: 0.5 + s * 1.6, f0: 900 + s * 1800, f1: 45, vol: 0.5 + s * 0.5, pan, wet });
-    this.tone({ f0: 120, f1: 28, dur: 0.4 + s * 0.9, vol: 0.5 + s * 0.6, pan, wet: wet * 0.5 });
+    // s sets loudness/brightness (capped); L sets length and keeps growing for the really big ones.
+    const s = clamp(size, 0, 1), L = clamp(size, 0, 2), pan = this.panX(x), wet = 0.25 + s * 0.45;
+    this.noiseBurst({ dur: 0.5 + L * 1.8, f0: 900 + s * 1800, f1: 40, vol: 0.5 + s * 0.5, pan, wet });
+    this.tone({ f0: 120, f1: 26, dur: 0.4 + L * 1.1, vol: 0.5 + s * 0.6, pan, wet: wet * 0.5 });
     this.noiseBurst({ dur: 0.07, filter: 'highpass', f0: 3200, f1: 1600, vol: 0.2 + s * 0.2, pan, wet }); // crack
-    this.weight(s);
+    this.weight(s, 0, L);
     if (s > 0.5) { // long rolling thunder for the big ones
-      this.noiseBurst({ dur: 2.4 + s * 2.2, f0: 320, f1: 30, vol: 0.3 * s, delay: 0.12, pan: pan * 0.5, wet: 0.7 });
+      this.noiseBurst({ dur: 2.2 + L * 2.4, f0: 320, f1: 28, vol: 0.3 * s + 0.1 * Math.max(0, L - 1), delay: 0.12, pan: pan * 0.5, wet: 0.7 });
     }
     // Dirt and pebbles raining back down (rate-limited so chains don't spam).
     const now = this.ctx.currentTime;
@@ -210,12 +211,12 @@ const Sound = {
   },
 
   /** The deep layers under every explosion: kick punch, sub drop, rumble, and a pressure swell on big ones. */
-  weight(s, delay = 0) {
+  weight(s, delay = 0, L = s) {
     const bus = this.lowBus;
     this.tone({ type: 'triangle', f0: 170, f1: 45, dur: 0.16 + s * 0.14, vol: 0.45 + s * 0.3, delay, bus });  // punch
-    this.tone({ f0: 75 + s * 15, f1: 24, dur: 0.55 + s * 1.7, vol: 0.5 + s * 0.45, delay, bus });            // sub drop
-    this.noiseBurst({ dur: 0.9 + s * 2.6, f0: 280 + s * 220, f1: 32, q: 1.1, vol: 0.4 + s * 0.5, delay, bus }); // rumble
-    if (s > 0.35) this.tone({ f0: 46, f1: 21, dur: 1.4 + s * 2.2, vol: 0.4 * s, delay: delay + 0.09, bus }); // pressure swell
+    this.tone({ f0: 75 + s * 15, f1: 24, dur: 0.55 + L * 1.9, vol: 0.5 + s * 0.45, delay, bus });            // sub drop
+    this.noiseBurst({ dur: 0.9 + L * 2.8, f0: 280 + s * 220, f1: 30, q: 1.1, vol: 0.4 + s * 0.5, delay, bus }); // rumble
+    if (s > 0.35) this.tone({ f0: 46, f1: 20, dur: 1.4 + L * 2.4, vol: 0.4 * s, delay: delay + 0.09, bus }); // pressure swell
   },
 
   fire(size = 0.2, x) {
@@ -310,13 +311,81 @@ const Sound = {
     }
   },
 
-  /** Laser: a bright descending zap with a hiss. */
+  /** Laser: a sharp crack, a descending zap, a heavy buzzing beam and rock sizzling where it cut. */
   laser(x) {
     if (!this.ok()) return;
     const pan = this.panX(x);
-    this.tone({ type: 'sawtooth', f0: 2600, f1: 320, dur: 0.5, vol: 0.09, pan, wet: 0.3 });
-    this.tone({ type: 'square', f0: 1300, f1: 880, dur: 0.35, vol: 0.04, pan, wet: 0.3 });
-    this.noiseBurst({ dur: 0.45, filter: 'highpass', f0: 7000, f1: 2500, vol: 0.12, pan, wet: 0.3 });
+    this.noiseBurst({ dur: 0.09, filter: 'highpass', f0: 4500, f1: 2000, vol: 0.32, pan, wet: 0.4 });       // crack
+    this.tone({ type: 'sawtooth', f0: 2800, f1: 260, dur: 0.6, vol: 0.13, pan, wet: 0.35 });                  // zap
+    this.tone({ type: 'square', f0: 1300, f1: 700, dur: 0.45, vol: 0.06, pan, wet: 0.35 });
+    this.tone({ type: 'sawtooth', f0: 160, f1: 70, dur: 0.85, vol: 0.16, pan, wet: 0.25 });                   // beam hum
+    this.tone({ type: 'square', f0: 82, f1: 55, dur: 0.7, vol: 0.07, pan, wet: 0.2 });
+    this.noiseBurst({ dur: 0.6, filter: 'highpass', f0: 7000, f1: 2500, vol: 0.16, pan, wet: 0.35 });        // hiss
+    this.noiseBurst({ dur: 1.1, filter: 'bandpass', f0: 3200, f1: 1400, q: 1.5, vol: 0.1, delay: 0.08, pan, wet: 0.3 }); // sizzle
+    this.weight(0.3);
+  },
+
+  /**
+   * Nuke: on top of the regular (already huge) boom, a slow sub "booommm" that swells
+   * and sinks, a delayed shockwave sweeping out across the stereo field, echoes off
+   * the hills, and a rumble that rolls on for several seconds. k scales it.
+   */
+  nuke(x, k = 1) {
+    if (!this.ok()) return;
+    const c = this.ctx, now = c.currentTime, pan = this.panX(x), bus = this.lowBus;
+    const swell = (delay, dur, f0, f1, vol, type = 'sine') => {
+      const o = c.createOscillator(), g = c.createGain(), t = now + delay;
+      o.type = type;
+      o.frequency.setValueAtTime(f0, t);
+      o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(vol, t + 0.25);
+      g.gain.setTargetAtTime(0.0001, t + 0.6, dur / 4);
+      o.connect(g); g.connect(bus);
+      o.start(t); o.stop(t + dur + 0.1);
+    };
+    swell(0.05, 4.5 * k + 1, 58, 22, 0.7 * k);
+    swell(0.1, 3.5 * k + 1, 36, 18, 0.5 * k, 'triangle');
+    // rumble that rolls on and on
+    const s = c.createBufferSource();
+    s.buffer = this.noise; s.loop = true;
+    const lp = c.createBiquadFilter();
+    lp.type = 'lowpass'; lp.Q.value = 0.9;
+    lp.frequency.setValueAtTime(500, now);
+    lp.frequency.exponentialRampToValueAtTime(40, now + 6 * k + 1);
+    const rg = c.createGain();
+    rg.gain.setValueAtTime(0.0001, now);
+    rg.gain.exponentialRampToValueAtTime(0.55 * k, now + 0.6);
+    rg.gain.setTargetAtTime(0.0001, now + 1.2, 1.6 * k + 0.3);
+    s.connect(lp); lp.connect(rg); this.out(rg, pan * 0.4, 0.6);
+    s.start(now, Math.random()); s.stop(now + 8 * k + 2);
+    // the shockwave arrives a beat later: a hard thump and a blast of air sweeping outwards
+    const sw = 0.55 + 0.25 * k;
+    this.tone({ type: 'triangle', f0: 140, f1: 30, dur: 0.6, vol: 0.8 * k, delay: sw, bus });
+    this.noiseBurst({ dur: 0.08, filter: 'highpass', f0: 3000, f1: 1200, vol: 0.35 * k, delay: sw, pan, wet: 0.5 });
+    for (const side of [-1, 1]) {
+      const p = clamp(pan + side * 0.3, -1, 1), p2 = side * 0.95, t = now + sw;
+      const n = c.createBufferSource();
+      n.buffer = this.noise; n.loop = true;
+      const bp = c.createBiquadFilter();
+      bp.type = 'bandpass'; bp.Q.value = 0.8;
+      bp.frequency.setValueAtTime(1600, t);
+      bp.frequency.exponentialRampToValueAtTime(140, t + 1.6);
+      const g = c.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.4 * k, t + 0.05);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 1.8);
+      n.connect(bp); bp.connect(g);
+      const panner = this.out(g, p, 0.5);
+      if (panner) { panner.pan.setValueAtTime(p, t); panner.pan.linearRampToValueAtTime(p2, t + 1.4); }
+      n.start(t, Math.random()); n.stop(t + 1.9);
+    }
+    // echoes off distant hills
+    [[1.7, -0.7, 0.45], [2.6, 0.75, 0.3], [3.7, -0.4, 0.18]].forEach(([d, p, v]) => {
+      const dd = d * (0.7 + 0.3 * k);
+      this.noiseBurst({ dur: 1.4, f0: 700, f1: 60, vol: v * k, delay: dd, pan: p, wet: 0.8 });
+      this.tone({ f0: 70, f1: 30, dur: 1.2, vol: v * 0.8 * k, delay: dd, bus });
+    });
   },
 
   /** Napalm igniting: a big whoosh with a low roar. */

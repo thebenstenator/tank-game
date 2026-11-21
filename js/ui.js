@@ -34,6 +34,7 @@ const UI = {
       this.renderRows();
     };
     this.$('start-btn').onclick = () => this.startGame();
+    this.$('dev-btn').onclick = () => this.startDev();
     this.$('ro-next').onclick = () => this.onRoundNext && this.onRoundNext();
     this.$('shop-done').onclick = () => this.onShopDone && this.onShopDone();
     this.$('shop-prev').onclick = () => this.shopPage(-1);
@@ -154,6 +155,19 @@ const UI = {
     this.game.startMatch(defs, settings);
   },
 
+  /** Weapon test range: you plus five targets that never shoot back. */
+  startDev() {
+    Sound.init();
+    const me = this.defs.find(d => d.type === 'human');
+    const defs = [{ name: (me && me.name.trim()) || 'You', color: PLAYER_COLORS[0], ai: null, owner: null }];
+    for (let i = 1; i < MAX_PLAYERS; i++) defs.push({ name: 'Target ' + i, color: PLAYER_COLORS[i], ai: 'dummy', owner: null });
+    this.$('setup').classList.add('hidden');
+    if (document.activeElement) document.activeElement.blur();
+    this.cache = {};
+    this.game.startMatch(defs, { ...this.readSettings(), rounds: 1 }, true);
+    this.game.devRespawn();
+  },
+
   backToMenu() {
     ['shop', 'roundover', 'netwait'].forEach(id => this.$(id).classList.add('hidden'));
     this.$('setup').classList.remove('hidden');
@@ -245,6 +259,7 @@ const UI = {
     this.$('mode-tabs').querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
     this.$('setup-cols').classList.toggle('hidden', mode === 'join');
     this.$('start-btn').classList.toggle('hidden', mode === 'join');
+    this.$('dev-btn').classList.toggle('hidden', mode !== 'local');
     this.$('host-bar').classList.toggle('hidden', mode !== 'host');
     this.$('join-panel').classList.toggle('hidden', mode !== 'join');
     if (mode === 'local') {
@@ -426,6 +441,7 @@ const UI = {
       this.showJoinForm('You left the match.');
       return;
     }
+    if (this.game.dev) { this.backToMenu(); return; }
     const msg = Net.isHost ? 'End this match for everyone and go back to the lobby?' : 'Quit to the main menu? This match will be lost.';
     if (confirm(msg)) this.backToMenu();
   },
