@@ -681,7 +681,7 @@ class Game {
       }
       for (let i = 0; i < w.count; i++) {
         const q = this.makeProjectile(hit.x + srand(-4, 4), sy, srand(-120, 120), srand(-470, -260), CLOD, p.owner, 'shell');
-        q.radius = 30;
+        q.radius = 28;
         q.cleared = true;
         q.ignoreTank = hit.tank || null; q.ignoreT = hit.tank ? 0.25 : 0;
         this.projectiles.push(q);
