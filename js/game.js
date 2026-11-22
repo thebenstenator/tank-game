@@ -520,7 +520,7 @@ class Game {
     adj('ArrowRight', 1, fine ? 8 : 50, 'angle', -1);
     adj('ArrowUp', fine ? 1 : 5, fine ? 40 : 350, 'power', 1);
     adj('ArrowDown', fine ? 1 : 5, fine ? 40 : 350, 'power', -1);
-    t.angle = clamp(t.angle, 0, 180);
+    t.angle = clampAngle(t.angle);
     t.power = clamp(t.power, 0, t.maxPower);
   }
 
@@ -681,7 +681,7 @@ class Game {
       }
       for (let i = 0; i < w.count; i++) {
         const q = this.makeProjectile(hit.x + srand(-4, 4), sy, srand(-120, 120), srand(-470, -260), CLOD, p.owner, 'shell');
-        q.radius = 18;
+        q.radius = 30;
         q.cleared = true;
         q.ignoreTank = hit.tank || null; q.ignoreT = hit.tank ? 0.25 : 0;
         this.projectiles.push(q);
@@ -1466,7 +1466,7 @@ class Game {
         ctx.lineWidth = 2 * px;
         ctx.stroke();
         if (t.lastShot) {
-          const label = `${t.lastShot.angle}° · ${t.lastShot.power}`;
+          const label = `${fmtAngle(t.lastShot.angle)} · ${t.lastShot.power}`;
           ctx.font = `600 ${12 * px}px 'Chakra Petch', sans-serif`;
           ctx.textAlign = ex > W - 80 ? 'right' : ex < 80 ? 'left' : 'center';
           ctx.lineWidth = 3 * px;

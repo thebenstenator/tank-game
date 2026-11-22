@@ -7,6 +7,17 @@ function randInt(a, b) { return Math.floor(a + Math.random() * (b - a + 1)); }
 /** Approximate standard normal (mean 0, sd ~1). */
 function randn() { return (Math.random() + Math.random() + Math.random() - 1.5) * 2; }
 function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+/*
+ * Angles are stored the maths way (0 = level right, 90 = straight up, 180 = level left)
+ * but shown as degrees off vertical with a side marker, so both sides compare directly.
+ * The barrel can dip ANGLE_DIP degrees below level.
+ */
+const ANGLE_DIP = 10;
+function clampAngle(a) { return clamp(a, -ANGLE_DIP, 180 + ANGLE_DIP); }
+function fmtAngle(a) {
+  const d = Math.round(Math.abs(90 - a));
+  return d === 0 ? '0°' : a < 90 ? d + '° ▸' : '◂ ' + d + '°';
+}
 function lerp(a, b, t) { return a + (b - a) * t; }
 function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 function weightedPick(items, rnd = Math.random) {

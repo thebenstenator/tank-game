@@ -121,7 +121,7 @@ const Net = {
   },
 
   applyAim(t, m) {
-    if (isFinite(m.angle)) t.angle = clamp(+m.angle, 0, 180);
+    if (isFinite(m.angle)) t.angle = clampAngle(+m.angle);
     if (isFinite(m.power)) t.power = clamp(+m.power, 0, t.maxPower);
     if (WEAPONS[m.weapon] && t.ammo(m.weapon) > 0) t.weapon = m.weapon;
   },

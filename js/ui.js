@@ -392,9 +392,15 @@ const UI = {
     const commit = () => {
       if (this.editing !== prop) return;
       const t = this.game.current;
-      const v = parseFloat(input.value.replace(/[^0-9.-]/g, ''));
+      const txt = input.value.toLowerCase();
+      const v = parseFloat(txt.replace(/[^0-9.]/g, ''));
       if (t && this.game.humanTurn && isFinite(v)) {
-        t[prop] = prop === 'angle' ? clamp(Math.round(v), 0, 180) : clamp(Math.round(v), 0, t.maxPower);
+        if (prop === 'angle') {
+          // degrees off vertical; L/R (or < >) picks the side, otherwise keep the current one
+          const left = /[l<]/.test(txt) ? true : /[r>]/.test(txt) ? false : t.angle > 90 || (t.angle === 90 && t.x > W / 2);
+          const d = clamp(Math.round(v), 0, 90 + ANGLE_DIP);
+          t.angle = left ? 90 + d : 90 - d;
+        } else t[prop] = clamp(Math.round(v), 0, t.maxPower);
         Sound.click();
       }
       close();
@@ -404,7 +410,7 @@ const UI = {
       if (!this.game.humanTurn || !t) return;
       this.commitEdits();
       this.editing = prop;
-      input.value = String(Math.round(t[prop]));
+      input.value = prop === 'angle' ? String(Math.round(Math.abs(90 - t.angle))) : String(Math.round(t[prop]));
       span.classList.add('hidden');
       input.classList.remove('hidden');
       input.focus();
@@ -476,7 +482,7 @@ const UI = {
     this.set('hud-swatch', '--c', t.color);
     this.set('hud-health', 'text', String(Math.ceil(t.health)));
     this.set('hud-money', 'text', fmtMoney(t.money));
-    this.set('hud-angle', 'text', Math.round(t.angle) + '°');
+    this.set('hud-angle', 'text', fmtAngle(t.angle));
     this.set('hud-power', 'text', String(Math.round(t.power)));
     this.set('hud-maxpow', 'text', t.maxPower < 1000 ? `· max ${t.maxPower}` : '');
     this.set('hud-powerfill', 'width', (t.power / 10).toFixed(1) + '%');

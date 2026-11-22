@@ -224,6 +224,7 @@ select option { background: #151824; }
 .hbtn:hover { background: rgba(255, 255, 255, 0.14); }
 .hbtn.small { width: auto; padding: 0 8px; }
 
+#hud-angle { min-width: 76px; }
 .hud-val.editable { cursor: text; border-radius: 6px; padding: 0 4px; transition: background 0.15s; }
 #hud:not(.locked) .hud-val.editable:hover { background: rgba(255, 255, 255, 0.1); box-shadow: inset 0 -2px 0 var(--accent); }
 #hud.locked .hud-val.editable { cursor: default; }

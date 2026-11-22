@@ -29,7 +29,7 @@ Things to know:
 | ← / → | Rotate barrel (hold to sweep, tap for 1°) |
 | ↑ / ↓ | Power (hold Shift for fine control) |
 | PgUp / PgDn | Power ±100 |
-| Click angle / power | Type an exact value (Enter to apply, Esc to cancel, Tab to switch) |
+| Click angle / power | Type an exact value (Enter to apply, Esc to cancel, Tab to switch). Angle is degrees off vertical; add L or R to pick a side |
 | Tab / Q / E | Cycle weapon |
 | S | Raise shield |
 | Space / Enter | Fire |
