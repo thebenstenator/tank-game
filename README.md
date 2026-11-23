@@ -62,5 +62,5 @@ The HUD along the bottom has buttons for all of these. Once every human is knock
 - `js/ai.js` — CPU aiming (simulates shots with the real physics) and shopping
 - `js/ui.js` — menus, HUD, armory, standings
 - `js/audio.js` — synthesized sound effects (WebAudio)
-- `js/music.js` — the menu march, played live from a little score
+- `js/music.js` — the 8-bit menu theme ("Iron Rain"), played live from a little score
 - `js/net.js` — online play: rooms, host/guest messages, snapshots
