@@ -47,7 +47,6 @@ const DEFAULT_NAMES = ['Red', 'Blue', 'Green', 'Gold', 'Violet', 'Rose'];
 // tank's centre, then falling off to nothing at radius + 14. Without it, damage falls off from 8px.
 const WEAPONS = {
   baby:     { name: 'Baby Missile', price: 0,    bundle: 0, radius: 20,  damage: 51,  color: '#ffe08a', ai: 1,  desc: 'Free and unlimited. Small, but honest.' },
-  tracer:   { name: 'Tracer',       price: 300,  bundle: 10, radius: 0,  damage: 0,   color: '#9fe8ff', ai: 0,  behavior: 'tracer', desc: 'Harmless. Leaves its path on screen so you can line up the real shot.' },
   missile:  { name: 'Missile',      price: 1500, bundle: 5, radius: 40,  damage: 66,  color: '#ffb14a', ai: 3,  desc: 'A solid all-rounder with a bigger blast.' },
   babynuke: { name: 'Baby Nuke',    price: 4000, bundle: 2, radius: 66,  damage: 110, core: 42, color: '#ff7a3d', ai: 6,  desc: 'Lethal within a tank-width of the target. Leaves a crater worth remembering.' },
   nuke:     { name: 'Nuke',         price: 11250, bundle: 1, radius: 210, damage: 130, core: 124, color: '#ff4d6d', ai: 10, desc: 'Lethal across a wide zone. Rearranges the landscape — and your enemies.' },
@@ -70,6 +69,7 @@ const CLOD = { id: 'clod', name: 'Dirt clod', radius: 17, damage: 0, color: '#b8
 const ITEMS = {
   shield:    { name: 'Shield',    price: 3500, bundle: 1, color: '#6fe3ff', desc: 'Absorbs 100 damage. Press S on your turn to raise it.' },
   parachute: { name: 'Parachute', price: 1200, bundle: 2, color: '#f2f2f2', desc: 'Opens automatically when you fall. No fall damage.' },
+  sight:     { name: 'Gun Sight', price: 4000, bundle: 1, color: '#9fe8ff', desc: 'Used up at the start of the next round and lasts all of it. Your aim line traces the first stretch of the shell\'s curve, wind included.' },
 };
 
 // How a destroyed tank goes out. Any weapon can cause any death; weight = how often.
@@ -89,7 +89,9 @@ const DEATH_EFFECTS = [
 ];
 const SHRAPNEL = { id: 'shrapnel', name: 'Shrapnel', radius: 20, damage: 26, color: '#ffb870' };
 
-const SHOP_ORDER =[...WEAPON_ORDER.filter(id => WEAPONS[id].price > 0), 'shield', 'parachute'];
+const SHOP_ORDER =[...WEAPON_ORDER.filter(id => WEAPONS[id].price > 0), 'shield', 'parachute', 'sight'];
+/** Seconds of flight the Gun Sight shows. */
+const SIGHT_TIME = 0.45;
 function shopEntry(id) { return WEAPONS[id] || ITEMS[id]; }
 
 // Visual themes. Terrain colors are [r,g,b]; mountains listed far → near.

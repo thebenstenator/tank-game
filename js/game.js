@@ -189,7 +189,12 @@ class Game {
     while (THEMES.length > 1 && theme === this.theme) theme = pick(THEMES);
     this.clearEffects();
     this.setTheme(theme, this.settings.terrain);
-    this.players.forEach(p => p.resetForRound());
+    this.players.forEach(p => {
+      p.resetForRound();
+      // a Gun Sight is used up at the start of a round and lasts all of it
+      p.sight = (p.inventory.sight || 0) > 0;
+      if (p.sight) p.inventory.sight--;
+    });
     this.placeTanks();
     this.order = this.dev ? [this.players[0]] : shuffle(this.players.slice());
     this.turnPos = -1;
@@ -272,6 +277,8 @@ class Game {
     me.health = 100;
     me.inventory.shield = 99;
     me.inventory.parachute = 99;
+    me.inventory.sight = 99;
+    me.sight = true;
   }
 
   /** Test range: fresh terrain and theme, same tanks. */
@@ -660,14 +667,6 @@ class Game {
     p.dead = true;
 
     if (b === 'dirt') { this.dirtBlast(hit.x, hit.y, p.radius); return; }
-    if (b === 'tracer') {
-      for (let i = 0; i < 10; i++) {
-        const a = rand(TAU), s = rand(30, 90);
-        this.spawn({ type: 'glow', x: hit.x, y: hit.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 20, life: rand(0.3, 0.6), size: 1.5, rgb: [160, 235, 255] });
-      }
-      Sound.pop(hit.x);
-      return;
-    }
     if (b === 'fountain') {
       // Erupt from just above the ground (spawning inside dirt made the clods land instantly).
       let sy = Math.round(hit.y);
@@ -944,6 +943,7 @@ class Game {
       const ab = Math.min(t.shield, amount);
       t.shield -= ab;
       amount -= ab;
+      if (ab >= 0.5) this.floaters.push({ x: t.x + rand(-6, 6), y: t.y - 46, text: `-${Math.round(ab)}`, rgb: [130, 225, 255], t: 0, dur: 1.2, size: 15 });
       if (t.shield <= 0.5) {
         t.shield = 0;
         Sound.shieldBreak(t.x);
@@ -1444,14 +1444,14 @@ class Game {
       ctx.save();
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
-      ctx.setLineDash([7 * px, 6 * px]);
+      ctx.setLineDash([5 * px, 6 * px]);
       path();
-      ctx.strokeStyle = 'rgba(0,0,0,0.5)';
-      ctx.lineWidth = 4.5 * px;
+      ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+      ctx.lineWidth = 3.2 * px;
       ctx.stroke();
       path();
-      ctx.strokeStyle = rgbStr(t.rgb, 1.2, 0.9);
-      ctx.lineWidth = 2.2 * px;
+      ctx.strokeStyle = rgbStr(t.rgb, 1.1, 0.62);
+      ctx.lineWidth = 1.8 * px;
       ctx.stroke();
       ctx.setLineDash([]);
       const end = tr[tr.length - 1];
@@ -1478,17 +1478,44 @@ class Game {
       }
       ctx.restore();
     }
-    const a = t.angle * DEG;
-    const len = 26 + (t.power / 1000) * 60;
+    const a = t.angle * DEG, px = 1 / this.view.scale;
+    let pts;
+    if (t.sight) pts = this.sightPath(t);
+    else {
+      const len = 26 + (t.power / 1000) * 60;
+      pts = [{ x: t.x + Math.cos(a) * 22, y: t.y - 11 - Math.sin(a) * 22 }, { x: t.x + Math.cos(a) * len, y: t.y - 11 - Math.sin(a) * len }];
+    }
+    const path = () => { ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y); for (const p of pts) ctx.lineTo(p.x, p.y); };
     ctx.save();
-    ctx.setLineDash([2, 5]);
-    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(t.x + Math.cos(a) * 22, t.y - 11 - Math.sin(a) * 22);
-    ctx.lineTo(t.x + Math.cos(a) * len, t.y - 11 - Math.sin(a) * len);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.setLineDash([3 * px, 5 * px]);
+    path();
+    ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+    ctx.lineWidth = 4 * px;
+    ctx.stroke();
+    path();
+    ctx.strokeStyle = t.sight ? 'rgba(170,240,255,0.95)' : 'rgba(255,255,255,0.95)';
+    ctx.lineWidth = 2 * px;
     ctx.stroke();
     ctx.restore();
+  }
+
+  /** Gun Sight: the first stretch of the shell's real flight (wind included), stopping at dirt. */
+  sightPath(t) {
+    const a = t.angle * DEG, m = t.muzzle();
+    const sp = muzzleSpeed(t.power), wind = this.wind * WIND_SCALE, dt = PHYS_DT;
+    let x = m.x, y = m.y, vx = Math.cos(a) * sp, vy = -Math.sin(a) * sp;
+    const pts = [{ x, y }];
+    for (let i = 1; i <= SIGHT_TIME / dt; i++) {
+      vx += wind * dt;
+      vy += GRAVITY * dt;
+      x += vx * dt; y += vy * dt;
+      if (x < 0 || x >= W || y >= H || (y >= 0 && this.terrain.isSolid(x, y))) break;
+      if (i % 4 === 0) pts.push({ x, y });
+    }
+    pts.push({ x, y });
+    return pts;
   }
 
   drawTank(ctx, t) {

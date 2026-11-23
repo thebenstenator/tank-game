@@ -179,7 +179,7 @@ const Net = {
       turnCount: g.turnCount,
       tanks: g.players.map(p => ({
         name: p.name, color: p.color, ai: p.ai, owner: p.owner,
-        x: p.x, y: p.y, health: p.health, shield: p.shield, alive: p.alive,
+        x: p.x, y: p.y, health: p.health, shield: p.shield, alive: p.alive, sight: !!p.sight,
         angle: p.angle, power: p.power, weapon: p.weapon, inventory: p.inventory,
         money: p.money, wins: p.wins, kills: p.kills,
       })),
@@ -347,7 +347,7 @@ const Net = {
     s.tanks.forEach((d, i) => {
       const t = g.players[i];
       Object.assign(t, {
-        ai: d.ai, owner: d.owner, x: d.x, y: d.y, health: d.health, shield: d.shield, alive: d.alive,
+        ai: d.ai, owner: d.owner, x: d.x, y: d.y, health: d.health, shield: d.shield, alive: d.alive, sight: !!d.sight,
         angle: d.angle, power: d.power, weapon: d.weapon, inventory: Object.assign({}, d.inventory),
         money: d.money, wins: d.wins, kills: d.kills,
         falling: false, vy: 0, fallDist: 0, parachuting: false,
