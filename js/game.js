@@ -299,11 +299,11 @@ class Game {
       stats.forEach((s, i) => Object.assign(this.players[i], s));
     } else {
       this.players.forEach(p => { p.money += 1000; });
-      if (winner) { winner.wins++; winner.money += 5000; }
+      if (winner) { winner.wins++; winner.money += 7000; }
     }
     if (Net.isHost) Net.roundEnded(this);
     UI.toast(winner ? `${winner.name} wins the round` : 'Total annihilation',
-      winner ? '+$5,000 victory bonus' : 'No survivors', 2000);
+      winner ? '+$7,000 victory bonus' : 'No survivors', 2000);
     Sound.win();
   }
 
@@ -969,7 +969,7 @@ class Game {
     t.health = 0;
     t.shield = 0;
     const k = t.lastHitBy;
-    if (k && k !== t) { k.kills++; k.money += 2000; }
+    if (k && k !== t) { k.kills++; k.money += 3000; }
     // Collateral damage from the death blast is credited to whoever caused it.
     const by = k || t;
     const x = t.x, y = t.y - 6;
