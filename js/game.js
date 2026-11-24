@@ -34,6 +34,7 @@ class Tank {
     this.lastTrail = null;
     this.lastShot = null;
     this.lastHitBy = null;
+    this.aiMem = null; // CPU: the last shot it fired and at whom
     this.burn = 0;
     this.weapon = 'baby';
     this.angle = 60;
@@ -548,7 +549,11 @@ class Game {
     t.power = Math.abs(dp) <= sp ? p.power : t.power + Math.sign(dp) * sp;
     if (t.angle === p.angle && t.power === p.power) {
       ai.wait += dt;
-      if (ai.wait > 0.35) this.fire();
+      if (ai.wait > 0.35) {
+        const tg = p.target;
+        if (tg) t.aiMem = { target: tg, angle: t.angle, power: t.power, wind: this.wind, tx: tg.x, ty: tg.y, R: WEAPONS[t.weapon].radius, weapon: t.weapon };
+        this.fire();
+      }
     }
   }
 
@@ -1454,27 +1459,51 @@ class Game {
       ctx.lineWidth = 1.8 * px;
       ctx.stroke();
       ctx.setLineDash([]);
+      // Where it landed, or, if it flew off the side, where the trail left the screen.
       const end = tr[tr.length - 1];
-      if (end.x > -20 && end.x < W + 20) {
-        const ex = clamp(end.x, 4, W - 4), ey = clamp(end.y, 4, H - 4);
+      const off = end.x < 0 ? -1 : end.x > W ? 1 : 0;
+      let ex = end.x, ey = end.y;
+      if (off) {
+        const edge = off < 0 ? 0 : W;
+        for (let i = tr.length - 1; i > 0; i--) {
+          const a = tr[i - 1], b = tr[i];
+          if ((a.x - edge) * (b.x - edge) <= 0 && a.x !== b.x) { ey = a.y + (b.y - a.y) * (edge - a.x) / (b.x - a.x); break; }
+        }
+        ex = edge;
+      }
+      ex = clamp(ex, 10 * px, W - 10 * px);
+      ey = clamp(ey, 24 * px, H - 10 * px);
+      ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+      ctx.fillStyle = rgbStr(t.rgb, 1.2, 1);
+      if (off) { // an arrow on the screen edge pointing the way it went
+        const s = 8 * px;
+        ctx.beginPath();
+        ctx.moveTo(ex + off * s, ey);
+        ctx.lineTo(ex - off * s * 0.6, ey - s);
+        ctx.lineTo(ex - off * s * 0.6, ey + s);
+        ctx.closePath();
+        ctx.lineWidth = 3 * px;
+        ctx.stroke();
+        ctx.fill();
+      } else {
         ctx.beginPath();
         ctx.arc(ex, ey, 7 * px, 0, TAU);
-        ctx.strokeStyle = 'rgba(0,0,0,0.55)';
         ctx.lineWidth = 4 * px;
         ctx.stroke();
         ctx.strokeStyle = rgbStr(t.rgb, 1.2, 1);
         ctx.lineWidth = 2 * px;
         ctx.stroke();
-        if (t.lastShot) {
-          const label = `${fmtAngle(t.lastShot.angle)} · ${t.lastShot.power}`;
-          ctx.font = `600 ${12 * px}px 'Chakra Petch', sans-serif`;
-          ctx.textAlign = ex > W - 80 ? 'right' : ex < 80 ? 'left' : 'center';
-          ctx.lineWidth = 3 * px;
-          ctx.strokeStyle = 'rgba(0,0,0,0.7)';
-          ctx.strokeText(label, ex, ey - 13 * px);
-          ctx.fillStyle = rgbStr(t.rgb, 1.25, 1);
-          ctx.fillText(label, ex, ey - 13 * px);
-        }
+      }
+      if (t.lastShot) {
+        const label = `${fmtAngle(t.lastShot.angle)} · ${t.lastShot.power}`;
+        const lx = off ? ex - off * 12 * px : ex, ly = ey - 13 * px;
+        ctx.font = `600 ${12 * px}px 'Chakra Petch', sans-serif`;
+        ctx.textAlign = off > 0 || ex > W - 80 ? 'right' : off < 0 || ex < 80 ? 'left' : 'center';
+        ctx.lineWidth = 3 * px;
+        ctx.strokeStyle = 'rgba(0,0,0,0.7)';
+        ctx.strokeText(label, lx, ly);
+        ctx.fillStyle = rgbStr(t.rgb, 1.25, 1);
+        ctx.fillText(label, lx, ly);
       }
       ctx.restore();
     }
