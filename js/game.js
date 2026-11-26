@@ -681,11 +681,14 @@ class Game {
       const T = this.theme;
       for (let i = 0; i < 50; i++) {
         const src = Math.random() < 0.4 ? T.top : T.mid, k = rand(0.7, 1.15);
-        const a = base + rand(-0.5, 0.5), s = rand(200, 560);
+        const a = base + rand(-0.4, 0.4), s = rand(200, 560);
         this.spawn({ type: 'debris', x: o.x + rand(-3, 3), y: o.y + rand(-3, 3), vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: rand(1.2, 2.2), size: rand(1.5, 3.5), g: 520, rgb: [src[0] * k, src[1] * k, src[2] * k] });
       }
       for (let i = 0; i < w.count; i++) {
-        const a = base + srand(-0.45, 0.45), s = srand(270, 490);
+        let a = base + srand(-0.4, 0.4);
+        const s = srand(270, 490);
+        // A clod headed straight into the dirt (the uphill side of a slope) goes up the other side of vertical instead.
+        if (this.rayBlocked(o.x, o.y, a, 40)) a = -Math.PI - a;
         const q = this.makeProjectile(o.x, o.y, Math.cos(a) * s, Math.sin(a) * s, CLOD, p.owner, 'shell');
         q.radius = 28;
         q.cleared = true;
@@ -753,10 +756,16 @@ class Game {
     }
     let l = Math.hypot(nx, ny);
     if (l < 1e-3) { nx = 0; ny = -1; } else { nx /= l; ny /= l; }
-    ny -= 0.8; // a fountain goes up: tip it skyward
-    l = Math.hypot(nx, ny); nx /= l; ny /= l;
-    if (ny > -0.4) { ny = -0.4; nx = Math.sign(nx) * Math.sqrt(1 - 0.16); } // never sideways or down
-    return { x: ox, y: oy, nx, ny };
+    // A fountain goes up: lean at most ~17° away from the slope, never sideways.
+    const tilt = clamp(nx * 0.4, -0.3, 0.3);
+    return { x: ox, y: oy, nx: Math.sin(tilt), ny: -Math.cos(tilt) };
+  }
+
+  /** Is there dirt within len px of (x, y) in direction a? */
+  rayBlocked(x, y, a, len) {
+    const dx = Math.cos(a), dy = Math.sin(a);
+    for (let d = 2; d <= len; d += 2) if (this.terrain.isSolid(x + dx * d, y + dy * d)) return true;
+    return false;
   }
 
   // ---------------------------------------------------------------- burrower
