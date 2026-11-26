@@ -940,7 +940,10 @@ class Game {
 
     for (const t of this.players) {
       if (!t.alive) continue;
-      const d = Math.hypot(t.x - x, (t.y - 7) - y);
+      let d = Math.hypot(t.x - x, (t.y - 7) - y);
+      // A shell stops on the shield bubble, which sits further out than the hull. Measure from the
+      // bubble as if it were the hull, so a hit on a shield does the same damage as one on the tank.
+      if (t.shield > 0) d = Math.max(0, d - SHIELD_PAD);
       const reach = radius + 14;
       if (d >= reach) continue;
       const core = opts.core || 0;
@@ -1264,7 +1267,8 @@ class Game {
       }
       any = true;
       if (!t.falling) { t.falling = true; t.vy = 0; t.fallDist = 0; }
-      if (t.alive && !t.parachuting && t.fallDist > 14 && (t.inventory.parachute || 0) > 0) {
+      // health, not just alive: a tank that's taken a killing blow stays "alive" until the dirt settles and it blows up
+      if (t.alive && t.health > 0 && !t.parachuting && t.fallDist > 14 && (t.inventory.parachute || 0) > 0) {
         t.inventory.parachute--;
         t.parachuting = true;
         Sound.chute(t.x);

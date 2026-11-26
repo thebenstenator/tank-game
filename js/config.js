@@ -47,7 +47,7 @@ const DEFAULT_NAMES = ['Red', 'Blue', 'Green', 'Gold', 'Violet', 'Rose'];
 // tank's centre, then falling off to nothing at radius + 14. Without it, damage falls off from 8px.
 const WEAPONS = {
   baby:     { name: 'Baby Missile', price: 0,    bundle: 0, radius: 20,  damage: 51,  color: '#ffe08a', ai: 1,  desc: 'Free and unlimited. Small, but honest.' },
-  missile:  { name: 'Missile',      price: 1500, bundle: 5, radius: 40,  damage: 66,  color: '#ffb14a', ai: 3,  desc: 'A solid all-rounder with a bigger blast.' },
+  missile:  { name: 'Missile',      price: 1500, bundle: 5, radius: 40,  damage: 73,  color: '#ffb14a', ai: 3,  desc: 'A solid all-rounder with a bigger blast.' },
   babynuke: { name: 'Baby Nuke',    price: 4000, bundle: 2, radius: 66,  damage: 110, core: 42, color: '#ff7a3d', ai: 6,  desc: 'Lethal within a tank-width of the target. Leaves a crater worth remembering.' },
   nuke:     { name: 'Nuke',         price: 11250, bundle: 1, radius: 210, damage: 130, core: 124, color: '#ff4d6d', ai: 10, desc: 'Lethal across a wide zone. Rearranges the landscape — and your enemies.' },
   mirv:     { name: 'MIRV',         price: 6000, bundle: 2, radius: 30,  damage: 50,  color: '#7cd3ff', ai: 7,  behavior: 'mirv', count: 5, desc: 'Splits into five warheads at the top of its arc, so lob it high.' },
@@ -92,6 +92,8 @@ const SHRAPNEL = { id: 'shrapnel', name: 'Shrapnel', radius: 20, damage: 26, col
 const SHOP_ORDER =[...WEAPON_ORDER.filter(id => WEAPONS[id].price > 0), 'shield', 'parachute', 'sight'];
 /** Seconds of flight the Gun Sight shows. */
 const SIGHT_TIME = 0.45;
+/** The shield bubble (radius 26) reaches this many px further out than the top of the hull, so blast distance is measured that much closer. */
+const SHIELD_PAD = 16;
 /** Length in px of the straight aim line with the Laser equipped, without and with the Gun Sight. */
 const LASER_AIM_LEN = 140;
 const LASER_SIGHT_LEN = 380;
