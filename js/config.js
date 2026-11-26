@@ -92,6 +92,8 @@ const SHRAPNEL = { id: 'shrapnel', name: 'Shrapnel', radius: 20, damage: 26, col
 const SHOP_ORDER =[...WEAPON_ORDER.filter(id => WEAPONS[id].price > 0), 'shield', 'parachute', 'sight'];
 /** Seconds of flight the Gun Sight shows. */
 const SIGHT_TIME = 0.45;
+/** Radius of the pocket the Dirt Fountain blows out of the ground before it erupts. */
+const FOUNTAIN_POCKET = 16;
 /** The shield bubble (radius 26) reaches this many px further out than the top of the hull, so blast distance is measured that much closer. */
 const SHIELD_PAD = 16;
 /** Length in px of the straight aim line with the Laser equipped, without and with the Gun Sight. */

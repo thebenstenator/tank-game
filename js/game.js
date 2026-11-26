@@ -673,10 +673,27 @@ class Game {
 
     if (b === 'dirt') { this.dirtBlast(hit.x, hit.y, p.radius); return; }
     if (b === 'fountain') {
-      // Erupt from open air (a clod spawned inside dirt lands on the spot, and 24 of those
-      // look like one dirt ball), spraying away from the surface it hit rather than always straight up.
-      const o = this.fountainOrigin(p, hit);
-      const base = Math.atan2(o.ny, o.nx);
+      // Blow a small pocket out first and erupt straight up from it. A clod that starts inside dirt
+      // lands on the spot (24 of those look like one dirt ball), and from an open pocket an upward
+      // spray clears any slope that isn't close to a sheer wall.
+      if (hit.ground) this.terrain.carve(hit.x, hit.y, FOUNTAIN_POCKET); // not on a tank: don't drop it into a hole
+      let o = { x: hit.x, y: hit.y - 4 };
+      // Under a roof or overhang the pocket has no sky: erupt instead from the nearest point back along
+      // the shell's path (open air) that does.
+      const skyBlocked = (x, y) => { // checks the whole width of the spray, not just straight up
+        for (const a of [-0.42, -0.21, 0, 0.21, 0.42]) {
+          const dx = Math.sin(a), dy = -Math.cos(a);
+          for (let d = 2; d <= 40; d += 2) if (this.terrain.isSolid(x + dx * d, y + dy * d)) return true;
+        }
+        return false;
+      };
+      if (skyBlocked(o.x, o.y)) {
+        for (let i = p.trail.length - 1; i >= 0; i--) {
+          const q = p.trail[i];
+          if (!this.terrain.isSolid(q.x, q.y) && !skyBlocked(q.x, q.y)) { o = { x: q.x, y: q.y }; break; }
+        }
+      }
+      const base = -Math.PI / 2;
       Sound.fountain(o.x);
       const T = this.theme;
       for (let i = 0; i < 50; i++) {
@@ -685,10 +702,7 @@ class Game {
         this.spawn({ type: 'debris', x: o.x + rand(-3, 3), y: o.y + rand(-3, 3), vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: rand(1.2, 2.2), size: rand(1.5, 3.5), g: 520, rgb: [src[0] * k, src[1] * k, src[2] * k] });
       }
       for (let i = 0; i < w.count; i++) {
-        let a = base + srand(-0.4, 0.4);
-        const s = srand(270, 490);
-        // A clod headed straight into the dirt (the uphill side of a slope) goes up the other side of vertical instead.
-        if (this.rayBlocked(o.x, o.y, a, 40)) a = -Math.PI - a;
+        const a = base + srand(-0.4, 0.4), s = srand(270, 490);
         const q = this.makeProjectile(o.x, o.y, Math.cos(a) * s, Math.sin(a) * s, CLOD, p.owner, 'shell');
         q.radius = 28;
         q.cleared = true;
@@ -725,47 +739,6 @@ class Game {
       q.ignoreTank = hit.tank || null; q.ignoreT = hit.tank ? 0.25 : 0;
       this.projectiles.push(q);
     }
-  }
-
-  /**
-   * Where a Dirt Fountain erupts from, and which way. The point is backed out along the shell's own path
-   * (which was open air) until there's a few px of clear space all round. The direction is the
-   * surface normal at the impact, tipped upward, so a slope or wall sprays out and up rather than into itself.
-   */
-  fountainOrigin(p, hit) {
-    const T = this.terrain;
-    const clear = (x, y, r) => {
-      if (T.isSolid(x, y)) return false;
-      for (let k = 0; k < 12; k++) { const a = k * TAU / 12; if (T.isSolid(x + Math.cos(a) * r, y + Math.sin(a) * r)) return false; }
-      return true;
-    };
-    let ox = null, oy = null;
-    for (let i = p.trail.length - 1; i >= 0; i--) {
-      const q = p.trail[i];
-      if (clear(q.x, q.y, 5)) { ox = q.x; oy = q.y; break; }
-    }
-    if (ox === null) { // nothing clear on the way in: fall back to just above the dirt
-      ox = hit.x; oy = Math.round(hit.y);
-      while (oy > 0 && T.isSolid(ox, oy)) oy--;
-      oy -= 3;
-    }
-    // surface normal: average direction to the open cells around the impact
-    let nx = 0, ny = 0;
-    for (let dy = -8; dy <= 8; dy += 2) for (let dx = -8; dx <= 8; dx += 2) {
-      if ((dx || dy) && !T.isSolid(hit.x + dx, hit.y + dy)) { const l = Math.hypot(dx, dy); nx += dx / l; ny += dy / l; }
-    }
-    let l = Math.hypot(nx, ny);
-    if (l < 1e-3) { nx = 0; ny = -1; } else { nx /= l; ny /= l; }
-    // A fountain goes up: lean at most ~17° away from the slope, never sideways.
-    const tilt = clamp(nx * 0.4, -0.3, 0.3);
-    return { x: ox, y: oy, nx: Math.sin(tilt), ny: -Math.cos(tilt) };
-  }
-
-  /** Is there dirt within len px of (x, y) in direction a? */
-  rayBlocked(x, y, a, len) {
-    const dx = Math.cos(a), dy = Math.sin(a);
-    for (let d = 2; d <= len; d += 2) if (this.terrain.isSolid(x + dx * d, y + dy * d)) return true;
-    return false;
   }
 
   // ---------------------------------------------------------------- burrower
