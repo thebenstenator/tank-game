@@ -849,10 +849,13 @@ class Game {
     const sy = this.terrain.surfaceY(x);
     if (sy < hit.y - 10) return false; // hit a cliff face — just explode
     const l = this.terrain.surfaceY(x - 5), r = this.terrain.surfaceY(x + 5);
-    p.dir = l > r ? -1 : r > l ? 1 : (Math.sign(p.vx) || 1);
+    // Downhill; on (near) flat ground it keeps going the way it was flying.
+    p.dir = Math.abs(l - r) <= 1 ? (Math.sign(p.vx) || 1) : l > r ? -1 : 1;
+    // A first landing keeps a little of the shell's speed; coming down off a ledge keeps all of it.
+    p.rollSpeed = clamp(Math.abs(p.vx) * (p.rolled ? 1 : 0.4), 60, 260);
+    if (!p.rolled) p.rollT = 0; // the time limit covers the whole roll, ledges included
+    p.rolled = true;
     p.kind = 'roll';
-    p.rollSpeed = clamp(60 + Math.abs(p.vx) * 0.3, 60, 220);
-    p.rollT = 0;
     p.x = hit.x;
     p.y = sy - 3;
     p.vx = 0; p.vy = 0;
@@ -861,26 +864,35 @@ class Game {
 
   stepRoller(p, dt) {
     p.rollT += dt;
-    const nx = p.x + p.dir * p.rollSpeed * dt;
-    if (nx < 0 || nx >= W) { p.dead = true; return; }
-    const ground = p.y + 3;
-    const sy = this.terrain.surfaceY(Math.round(nx));
+    const T = this.terrain;
     const boom = () => { p.dead = true; this.explode(p.x, p.y, p.radius, p.damage, p.owner, { core: p.core }); };
+    const nx = p.x + p.dir * p.rollSpeed * dt;
+    if (nx < 0 || nx >= W) { boom(); return; } // the edge of the world stops it like a wall
+    const ground = p.y + 3;
+    const sy = T.surfaceY(Math.round(nx));
 
     for (const t of this.players) {
       if (t.hitTest(nx, p.y - 2) && (p.cleared || t !== p.owner)) { p.x = nx; boom(); return; }
     }
     if (Math.hypot(nx - p.owner.x, p.y - p.owner.y) > 34) p.cleared = true;
 
-    if (sy < ground - 1.5 || p.rollT > 6) { boom(); return; } // reached a valley / wall
-    if (sy > ground + 6) {               // rolled off a ledge — fall again
+    if (sy > ground + 6) { // rolled off a ledge — fall again
       p.x = nx;
       p.kind = 'shell';
       p.vx = p.dir * p.rollSpeed;
       p.vy = 0;
       return;
     }
-    p.rollSpeed = clamp(p.rollSpeed + (sy - ground) * 30, 40, 260);
+    // Look a few pixels ahead (not one tick ahead, which at low speed is a fraction of a pixel and
+    // never sees the slope): once the ground in front rises, it has reached the bottom of a valley or a wall.
+    const ahead = T.surfaceY(Math.round(nx + p.dir * 5));
+    // Also catches gentle far slopes: a few pixels of climb above the lowest point it reached and it goes off.
+    p.low = Math.max(p.low || 0, ground);
+    if (ahead < sy - 2 || sy < ground - 3 || sy < p.low - 4 || p.rollT > 6) { boom(); return; }
+    // Speeds up going down, slows on the flat, and stops (and goes off) if it runs out of speed.
+    const slope = clamp((ahead - sy) / 5, -1.5, 1.5); // + = downhill
+    p.rollSpeed = Math.min(260, p.rollSpeed + (slope * 520 - 45) * dt);
+    if (p.rollSpeed < 20) { boom(); return; }
     p.x = nx;
     p.y = sy - 3;
     this.recordTrail(p);
