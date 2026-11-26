@@ -44,15 +44,10 @@ const AI = {
     const target = this.chooseTarget(game, t);
     let weapon = this.pickWeapon(t, target);
     const shield = (t.inventory.shield || 0) > 0 && t.shield <= 0 && (t.ai !== 'easy' || Math.random() < 0.5);
-    if (weapon === 'laser') { // straight line: aim right at them, with enough power to reach
+    if (weapon === 'laser') { // straight line, any distance: aim right at them (power doesn't matter)
       const mx = t.x, my = t.y - 11, tx = target.x, ty = target.y - 8;
-      const dist = Math.hypot(tx - mx, ty - my);
-      const need = (dist + 30 - 160) / (W * 1.2) * 1000;
-      if (need <= t.maxPower) {
-        const ang = Math.atan2(-(ty - my), tx - mx) / DEG;
-        return { angle: Math.round(clamp(ang + randn() * prof.angErr * 0.5, 0, 180) * 10) / 10, power: Math.round(clamp(need + 40, 50, t.maxPower)), weapon, shield, target };
-      }
-      weapon = 'baby';
+      const ang = Math.atan2(-(ty - my), tx - mx) / DEG;
+      return { angle: Math.round(clamp(ang + randn() * prof.angErr * 0.5, 0, 180) * 10) / 10, power: Math.round(t.power), weapon, shield, target };
     }
     const R = WEAPONS[weapon].radius;
     const tx = target.x, ty = target.y - 7;

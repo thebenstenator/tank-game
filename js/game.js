@@ -431,10 +431,10 @@ class Game {
     }
   }
 
-  /** Straight beam from the muzzle; power sets its length. Cuts a thin channel and hits every tank on the line. */
+  /** Straight beam from the muzzle, all the way across the screen. Cuts a thin channel and hits every tank on the line. */
   fireLaser(t, w, m) {
     const a = t.angle * DEG, dx = Math.cos(a), dy = -Math.sin(a);
-    const len = 160 + (t.power / 1000) * W * 1.2;
+    const len = Math.hypot(W, H) + 40; // always reaches the edge of the world
     let x = m.x, y = m.y, d = 0, n = 0;
     const hit = new Set();
     while (d < len) {
@@ -673,18 +673,20 @@ class Game {
 
     if (b === 'dirt') { this.dirtBlast(hit.x, hit.y, p.radius); return; }
     if (b === 'fountain') {
-      // Erupt from just above the ground (spawning inside dirt made the clods land instantly).
-      let sy = Math.round(hit.y);
-      while (sy > 0 && this.terrain.isSolid(hit.x, sy)) sy--;
-      sy -= 3;
-      Sound.fountain(hit.x);
+      // Erupt from open air (a clod spawned inside dirt lands on the spot, and 24 of those
+      // look like one dirt ball), spraying away from the surface it hit rather than always straight up.
+      const o = this.fountainOrigin(p, hit);
+      const base = Math.atan2(o.ny, o.nx);
+      Sound.fountain(o.x);
       const T = this.theme;
       for (let i = 0; i < 50; i++) {
         const src = Math.random() < 0.4 ? T.top : T.mid, k = rand(0.7, 1.15);
-        this.spawn({ type: 'debris', x: hit.x + rand(-6, 6), y: sy, vx: rand(-140, 140), vy: -rand(200, 560), life: rand(1.2, 2.2), size: rand(1.5, 3.5), g: 520, rgb: [src[0] * k, src[1] * k, src[2] * k] });
+        const a = base + rand(-0.5, 0.5), s = rand(200, 560);
+        this.spawn({ type: 'debris', x: o.x + rand(-3, 3), y: o.y + rand(-3, 3), vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: rand(1.2, 2.2), size: rand(1.5, 3.5), g: 520, rgb: [src[0] * k, src[1] * k, src[2] * k] });
       }
       for (let i = 0; i < w.count; i++) {
-        const q = this.makeProjectile(hit.x + srand(-4, 4), sy, srand(-120, 120), srand(-470, -260), CLOD, p.owner, 'shell');
+        const a = base + srand(-0.45, 0.45), s = srand(270, 490);
+        const q = this.makeProjectile(o.x, o.y, Math.cos(a) * s, Math.sin(a) * s, CLOD, p.owner, 'shell');
         q.radius = 28;
         q.cleared = true;
         q.ignoreTank = hit.tank || null; q.ignoreT = hit.tank ? 0.25 : 0;
@@ -720,6 +722,41 @@ class Game {
       q.ignoreTank = hit.tank || null; q.ignoreT = hit.tank ? 0.25 : 0;
       this.projectiles.push(q);
     }
+  }
+
+  /**
+   * Where a Dirt Fountain erupts from, and which way. The point is backed out along the shell's own path
+   * (which was open air) until there's a few px of clear space all round. The direction is the
+   * surface normal at the impact, tipped upward, so a slope or wall sprays out and up rather than into itself.
+   */
+  fountainOrigin(p, hit) {
+    const T = this.terrain;
+    const clear = (x, y, r) => {
+      if (T.isSolid(x, y)) return false;
+      for (let k = 0; k < 12; k++) { const a = k * TAU / 12; if (T.isSolid(x + Math.cos(a) * r, y + Math.sin(a) * r)) return false; }
+      return true;
+    };
+    let ox = null, oy = null;
+    for (let i = p.trail.length - 1; i >= 0; i--) {
+      const q = p.trail[i];
+      if (clear(q.x, q.y, 5)) { ox = q.x; oy = q.y; break; }
+    }
+    if (ox === null) { // nothing clear on the way in: fall back to just above the dirt
+      ox = hit.x; oy = Math.round(hit.y);
+      while (oy > 0 && T.isSolid(ox, oy)) oy--;
+      oy -= 3;
+    }
+    // surface normal: average direction to the open cells around the impact
+    let nx = 0, ny = 0;
+    for (let dy = -8; dy <= 8; dy += 2) for (let dx = -8; dx <= 8; dx += 2) {
+      if ((dx || dy) && !T.isSolid(hit.x + dx, hit.y + dy)) { const l = Math.hypot(dx, dy); nx += dx / l; ny += dy / l; }
+    }
+    let l = Math.hypot(nx, ny);
+    if (l < 1e-3) { nx = 0; ny = -1; } else { nx /= l; ny /= l; }
+    ny -= 0.8; // a fountain goes up: tip it skyward
+    l = Math.hypot(nx, ny); nx /= l; ny /= l;
+    if (ny > -0.4) { ny = -0.4; nx = Math.sign(nx) * Math.sqrt(1 - 0.16); } // never sideways or down
+    return { x: ox, y: oy, nx, ny };
   }
 
   // ---------------------------------------------------------------- burrower
@@ -1521,9 +1558,12 @@ class Game {
     }
     const a = t.angle * DEG, px = 1 / this.view.scale;
     let pts;
-    if (t.sight) pts = this.sightPath(t);
+    const laser = WEAPONS[t.weapon] && WEAPONS[t.weapon].behavior === 'laser';
+    if (t.sight && !laser) pts = this.sightPath(t);
     else {
-      const len = 26 + (t.power / 1000) * 60;
+      // The laser flies dead straight and power doesn't matter, so its line is a longer fixed-length
+      // straight line (longer still with the Gun Sight). Shells get a short stub that grows with power.
+      const len = laser ? (t.sight ? LASER_SIGHT_LEN : LASER_AIM_LEN) : 26 + (t.power / 1000) * 60;
       pts = [{ x: t.x + Math.cos(a) * 22, y: t.y - 11 - Math.sin(a) * 22 }, { x: t.x + Math.cos(a) * len, y: t.y - 11 - Math.sin(a) * len }];
     }
     const path = () => { ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y); for (const p of pts) ctx.lineTo(p.x, p.y); };
@@ -1536,7 +1576,7 @@ class Game {
     ctx.lineWidth = 4 * px;
     ctx.stroke();
     path();
-    ctx.strokeStyle = t.sight ? 'rgba(170,240,255,0.95)' : 'rgba(255,255,255,0.95)';
+    ctx.strokeStyle = laser ? 'rgba(255,120,150,0.95)' : t.sight ? 'rgba(170,240,255,0.95)' : 'rgba(255,255,255,0.95)';
     ctx.lineWidth = 2 * px;
     ctx.stroke();
     ctx.restore();
