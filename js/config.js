@@ -75,17 +75,17 @@ const ITEMS = {
 // How a destroyed tank goes out. Any weapon can cause any death; weight = how often.
 // The tame ones are common, the big chain-reaction ones are rare treats.
 const DEATH_EFFECTS = [
-  { id: 'blast',    name: 'Blast',         label: 'DESTROYED',      weight: 30 },
-  { id: 'fizzle',   name: 'Fizzle',        label: 'FIZZLED',        weight: 14 },
+  { id: 'blast',    name: 'Blast',         label: 'DESTROYED',      weight: 24 },
+  { id: 'fizzle',   name: 'Fizzle',        label: 'FIZZLED',        weight: 11 },
   { id: 'vaporize', name: 'Vaporized',     label: 'VAPORIZED',      weight: 10 },
   { id: 'shrapnel', name: 'Shrapnel',      label: 'SHRAPNEL!',      weight: 11 },
-  { id: 'cookoff',  name: 'Ammo cook-off', label: 'AMMO COOK-OFF!', weight: 10 },
-  { id: 'inferno',  name: 'Inferno',       label: 'INFERNO!',       weight: 8 },
-  { id: 'runaway',  name: 'Loose turret',  label: 'LOOSE TURRET!',  weight: 7 },
-  { id: 'sinkhole', name: 'Sinkhole',      label: 'SINKHOLE!',      weight: 6 },
-  { id: 'funky',    name: 'Funky',         label: 'FUNKY!',         weight: 5 },
-  { id: 'bigboom',  name: 'Big boom',      label: 'KABOOM!',        weight: 5 },
-  { id: 'meltdown', name: 'Meltdown',      label: 'MELTDOWN!',      weight: 2 },
+  { id: 'cookoff',  name: 'Ammo cook-off', label: 'AMMO COOK-OFF!', weight: 11 },
+  { id: 'inferno',  name: 'Inferno',       label: 'INFERNO!',       weight: 10 },
+  { id: 'runaway',  name: 'Loose turret',  label: 'LOOSE TURRET!',  weight: 8 },
+  { id: 'sinkhole', name: 'Sinkhole',      label: 'SINKHOLE!',      weight: 7 },
+  { id: 'funky',    name: 'Funky',         label: 'FUNKY!',         weight: 7 },
+  { id: 'bigboom',  name: 'Big boom',      label: 'KABOOM!',        weight: 7 },
+  { id: 'meltdown', name: 'Meltdown',      label: 'MELTDOWN!',      weight: 3 },
 ];
 const SHRAPNEL = { id: 'shrapnel', name: 'Shrapnel', radius: 20, damage: 26, color: '#ffb870' };
 
