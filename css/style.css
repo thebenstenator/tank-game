@@ -415,14 +415,22 @@ select option { background: #151824; }
 .card-foot { display: flex; justify-content: space-between; align-items: center; }
 .price { font-weight: 700; font-family: 'Chakra Petch', sans-serif; font-size: 16px; }
 .price small { color: var(--muted); font-family: Inter, sans-serif; font-weight: 500; font-size: 12px; }
-.shop-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 18px; gap: 16px; }
-.pager { display: flex; align-items: center; gap: 10px; }
+.shop-foot { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; margin-top: 18px; gap: 16px; }
+.shop-foot #shop-done { grid-column: 3; justify-self: end; }
+.pager {
+  grid-column: 2; display: flex; align-items: center; gap: 12px;
+  padding: 6px 8px; border-radius: 14px;
+  background: rgba(255, 122, 61, 0.12); border: 1px solid rgba(255, 122, 61, 0.45);
+  box-shadow: 0 0 22px rgba(255, 122, 61, 0.18);
+}
 .pager.hidden { visibility: hidden; }
-.pager .btn { font-size: 18px; line-height: 1; padding: 6px 14px; }
-.dots { display: flex; gap: 7px; }
-.dots i { width: 9px; height: 9px; border-radius: 50%; background: rgba(255, 255, 255, 0.2); cursor: pointer; transition: background 0.2s, transform 0.2s; }
-.dots i.on { background: var(--text); transform: scale(1.15); }
-.pager-label { font-size: 12px; color: var(--muted); margin-left: 4px; font-variant-numeric: tabular-nums; }
+.pager .btn { font-size: 20px; line-height: 1; padding: 6px 16px; color: var(--accent2); border-color: rgba(255, 160, 80, 0.5); background: rgba(255, 122, 61, 0.16); }
+.pager .btn:hover:not(:disabled) { background: rgba(255, 122, 61, 0.3); }
+.dots { display: flex; align-items: center; gap: 8px; }
+.dots i { width: 10px; height: 10px; border-radius: 50%; background: rgba(255, 195, 74, 0.28); cursor: pointer; transition: background 0.2s, transform 0.2s; }
+.dots i:hover { background: rgba(255, 195, 74, 0.6); }
+.dots i.on { background: var(--accent2); transform: scale(1.25); box-shadow: 0 0 8px rgba(255, 195, 74, 0.7); }
+.pager-label { font-size: 13px; font-weight: 600; color: var(--accent2); margin-left: 4px; font-variant-numeric: tabular-nums; }
 
 /* ---------- Round over ---------- */
 .ro-panel { max-width: 560px; text-align: center; }
