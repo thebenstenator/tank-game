@@ -88,6 +88,29 @@ button:disabled { cursor: not-allowed; opacity: 0.4; }
 .setup-panel { max-width: 860px; position: relative; }
 .fs-btn { position: absolute; top: 16px; right: 16px; color: var(--muted); }
 .fs-btn:hover { color: var(--text); }
+.setup-audio { position: absolute; top: 16px; left: 16px; display: flex; gap: 6px; }
+.setup-audio .btn { color: var(--muted); }
+.setup-audio .btn:hover { color: var(--text); }
+.setup-audio .btn.off { color: #ff8f7a; border-color: rgba(255, 143, 122, 0.35); }
+@media (max-width: 720px) {
+  .setup-panel { padding-top: 64px; }
+}
+
+/* Audio settings */
+#audio-menu { background: rgba(0, 0, 0, 0.45); }
+.audio-panel { max-width: 420px; }
+.audio-panel h2 { font-family: 'Chakra Petch', sans-serif; margin: 6px 0 18px; }
+.audio-panel kbd {
+  font: 600 11px Inter, sans-serif; color: var(--muted);
+  border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; margin-left: 4px;
+}
+.slider-row { display: grid; grid-template-columns: 110px 1fr 40px; align-items: center; gap: 12px; margin-bottom: 14px; }
+.slider-row label { color: var(--muted); font-size: 14px; }
+.slider-row input[type="range"] { width: 100%; padding: 0; border: none; background: none; accent-color: var(--accent); cursor: pointer; }
+.slider-val { text-align: right; font-family: 'Chakra Petch', sans-serif; font-weight: 600; font-variant-numeric: tabular-nums; }
+.audio-panel.muted .slider-row { opacity: 0.45; }
+.audio-note { color: var(--muted); font-size: 13px; margin: 0 0 18px; }
+.audio-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
 .brand { text-align: center; margin-bottom: 26px; }
 .brand h1 {
   font-family: 'Chakra Petch', sans-serif;

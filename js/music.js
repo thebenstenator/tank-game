@@ -32,11 +32,11 @@ const Music = {
     const c = Sound.ctx;
     this.bus = c.createGain();
     this.bus.gain.value = 0;
-    this.bus.connect(Sound.master);
+    this.bus.connect(Sound.musicOut);
     const send = c.createGain();
     send.gain.value = 0.2;
     this.bus.connect(send);
-    send.connect(Sound.verbIn);
+    send.connect(Sound.musicVerbIn);
     if (c.createPeriodicWave) {
       const pw = duty => {
         const n = 64, re = new Float32Array(n), im = new Float32Array(n);

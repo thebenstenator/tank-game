@@ -10,6 +10,12 @@
   const HOLD_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown']);
 
   window.addEventListener('keydown', e => {
+    if (UI.audioOpen) {
+      // The audio panel takes the keyboard: Esc closes it, M still mutes, the game ignores the rest.
+      if (e.code === 'Escape') { e.preventDefault(); UI.closeAudio(); }
+      else if (e.code === 'KeyM') UI.toggleMute();
+      return;
+    }
     const tag = e.target && e.target.tagName;
     if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
     game.fine = e.shiftKey;
@@ -60,7 +66,7 @@
     last = now;
     if (game.skipping) game.fastForward(); else game.update(dt);
     Net.tick(dt);
-    Music.update(game.state === 'setup');
+    Music.update(game.state === 'setup' && Sound.settings.musicOn);
     game.render();
     UI.updateHUD(game);
     requestAnimationFrame(frame);

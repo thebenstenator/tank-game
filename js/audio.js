@@ -14,7 +14,10 @@ const Sound = {
   verbIn: null,
   noise: null,
   muted: false,
-  volume: 0.55,
+  volume: 0.55,   // full-scale output; the sliders scale around this
+
+  // Player audio settings (0–100 sliders, 80 = the stock mix), saved between visits.
+  settings: { master: 80, music: 80, sfx: 80, musicOn: true },
 
   voices: [],     // active projectile air-rush voices
   amb: null,      // wind ambience
@@ -31,11 +34,17 @@ const Sound = {
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
     const c = this.ctx = new AC();
-    this.master = c.createGain();
-    this.master.gain.value = this.muted ? 0 : this.volume;
+    // main (master volume / mute) -> compressor -> speakers. Sound effects go
+    // through `master` (the effects bus); the menu music has its own bus.
+    this.main = c.createGain();
     const comp = c.createDynamicsCompressor();
-    this.master.connect(comp);
+    this.main.connect(comp);
     comp.connect(c.destination);
+    this.master = c.createGain();
+    this.master.connect(this.main);
+    this.musicOut = c.createGain();
+    this.musicOut.connect(this.main);
+    this.applyGain(true);
 
     const len = c.sampleRate * 2;
     const buf = c.createBuffer(1, len, c.sampleRate);
@@ -50,6 +59,13 @@ const Sound = {
     this.verbIn.gain.value = 0.9;
     this.verbIn.connect(verb);
     verb.connect(this.master);
+
+    // The music gets its own copy of the reverb so the effects slider doesn't touch its tail.
+    const mverb = c.createConvolver();
+    mverb.buffer = verb.buffer;
+    this.musicVerbIn = c.createGain();
+    this.musicVerbIn.connect(mverb);
+    mverb.connect(this.musicOut);
 
     // Low-end bus for explosion weight: soft-clipped so the sub-bass feels big and
     // still comes through on laptop speakers, with a little reverb on the tail.
@@ -91,7 +107,32 @@ const Sound = {
   toggle() {
     this.muted = !this.muted;
     this.applyGain();
+    this.saveSettings();
     return this.muted;
+  },
+
+  /** Load saved audio settings. Safe to call before init. */
+  loadSettings() {
+    try {
+      const raw = JSON.parse(localStorage.getItem('hh.audio') || 'null');
+      if (raw) {
+        for (const k of ['master', 'music', 'sfx']) if (isFinite(raw[k])) this.settings[k] = clamp(+raw[k], 0, 100);
+        if (typeof raw.musicOn === 'boolean') this.settings.musicOn = raw.musicOn;
+        if (typeof raw.muted === 'boolean') this.muted = raw.muted;
+      }
+    } catch (e) { /* ignore */ }
+    this.applyGain();
+  },
+
+  saveSettings() {
+    try { localStorage.setItem('hh.audio', JSON.stringify({ ...this.settings, muted: this.muted })); } catch (e) { /* ignore */ }
+  },
+
+  /** Change one setting (master / music / sfx 0–100, or musicOn), apply it and save. */
+  setSetting(k, v) {
+    this.settings[k] = v;
+    this.applyGain();
+    this.saveSettings();
   },
 
   /** Silence everything (used while fast-forwarding a CPU-only round). */
@@ -100,8 +141,16 @@ const Sound = {
     this.applyGain();
   },
 
-  applyGain() {
-    if (this.master) this.master.gain.value = this.muted || this.silent ? 0 : this.volume;
+  /** Slider (0–100, 80 = the stock mix) -> gain. Squared so the slider feels even to the ear. */
+  level(v) { return Math.pow(clamp(v, 0, 100) / 80, 2); },
+
+  applyGain(instant) {
+    if (!this.ctx) return;
+    const s = this.settings, now = this.ctx.currentTime;
+    const set = (node, v) => { if (instant) node.gain.value = v; else node.gain.setTargetAtTime(v, now, 0.03); };
+    set(this.main, this.muted || this.silent ? 0 : this.volume * this.level(s.master));
+    set(this.master, this.level(s.sfx));
+    set(this.musicOut, this.level(s.music));
   },
 
   ok() { return this.ctx && !this.muted && !this.silent; },

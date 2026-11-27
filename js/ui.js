@@ -44,6 +44,7 @@ const UI = {
     this.bindEdit('hud-angle', 'angle');
     this.bindEdit('hud-power', 'power');
     this.bindOnline();
+    this.bindAudio();
     this.$('setup-fs').onclick = () => this.toggleFullscreen();
     const onFs = () => {
       const on = !!(document.fullscreenElement || document.webkitFullscreenElement);
@@ -370,7 +371,7 @@ const UI = {
           case 'next': g.cycleWeapon(1); break;
           case 'fire': if (g.humanTurn) g.fire(); break;
           case 'shield': if (g.humanTurn) g.activateShield(g.current); break;
-          case 'mute': this.toggleMute(); break;
+          case 'audio': this.openAudio(); break;
           case 'fullscreen': this.toggleFullscreen(); break;
           case 'skip': g.skipRound(); break;
           case 'menu': this.quitPrompt(); break;
@@ -454,7 +455,78 @@ const UI = {
 
   toggleMute() {
     Sound.init();
-    const m = Sound.toggle();
+    Sound.toggle();
+    this.syncAudio();
+  },
+
+  // ------------------------------------------------------------ audio settings
+
+  bindAudio() {
+    Sound.loadSettings();
+    for (const k of ['master', 'sfx', 'music']) {
+      const input = this.$('aud-' + k);
+      input.addEventListener('input', () => {
+        Sound.init();
+        Sound.setSetting(k, +input.value);
+        this.syncAudio();
+      });
+      // A sample click when you let go of the effects slider, so you can hear the new level.
+      if (k !== 'music') input.addEventListener('change', () => Sound.click());
+    }
+    this.$('aud-mute').onchange = () => this.toggleMute();
+    this.$('aud-musicon').onchange = e => this.setMusicOn(e.target.checked);
+    this.$('setup-music').onclick = () => this.setMusicOn(!Sound.settings.musicOn);
+    this.$('setup-audio').onclick = () => this.openAudio();
+    this.$('aud-done').onclick = () => this.closeAudio();
+    this.$('aud-reset').onclick = () => {
+      Sound.init();
+      Object.assign(Sound.settings, { master: 80, music: 80, sfx: 80, musicOn: true });
+      if (Sound.muted) Sound.toggle();
+      Sound.applyGain();
+      Sound.saveSettings();
+      this.syncAudio();
+    };
+    // Click the dimmed backdrop to close.
+    this.$('audio-menu').addEventListener('pointerdown', e => { if (e.target.id === 'audio-menu') this.closeAudio(); });
+    this.syncAudio();
+  },
+
+  setMusicOn(on) {
+    Sound.init();
+    Sound.setSetting('musicOn', on);
+    this.syncAudio();
+  },
+
+  get audioOpen() { return !this.$('audio-menu').classList.contains('hidden'); },
+
+  openAudio() {
+    Sound.init();
+    this.commitEdits();
+    this.game.keys = {};
+    this.syncAudio();
+    this.$('audio-note').classList.toggle('hidden', this.game.state === 'setup');
+    this.$('audio-menu').classList.remove('hidden');
+    this.$('aud-done').focus();
+  },
+
+  closeAudio() {
+    this.$('audio-menu').classList.add('hidden');
+    if (document.activeElement) document.activeElement.blur();
+  },
+
+  /** Bring every audio control (panel, title-screen buttons, HUD icon) in line with the settings. */
+  syncAudio() {
+    const s = Sound.settings, m = Sound.muted;
+    for (const k of ['master', 'sfx', 'music']) {
+      this.$('aud-' + k).value = s[k];
+      this.$('aud-' + k + '-val').textContent = s[k];
+    }
+    this.$('aud-mute').checked = m;
+    this.$('aud-musicon').checked = s.musicOn;
+    this.$('audio-menu').querySelector('.audio-panel').classList.toggle('muted', m);
+    const mb = this.$('setup-music');
+    mb.textContent = s.musicOn ? '🎵 Music on' : '🎵 Music off';
+    mb.classList.toggle('off', !s.musicOn);
     this.$('hud-mute').textContent = m ? '🔇' : '🔊';
   },
 

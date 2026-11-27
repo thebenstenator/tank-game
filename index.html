@@ -64,7 +64,7 @@
       <button class="skip-btn hidden" data-act="skip" id="hud-skip" title="No humans left: fast-forward to the end of the round">Skip to end ⏭</button>
       <span id="hud-round">Round 1/5</span>
       <button class="hbtn small" data-act="fullscreen" id="hud-fs" title="Full screen (F)">⛶</button>
-      <button class="hbtn small" data-act="mute" id="hud-mute" title="Mute (M)">🔊</button>
+      <button class="hbtn small" data-act="audio" id="hud-mute" title="Audio settings (M mutes)">🔊</button>
       <button class="hbtn small" data-act="menu" title="Quit to menu">☰</button>
     </div>
     </div>
@@ -78,6 +78,10 @@
   <div id="setup" class="screen">
     <div class="panel setup-panel glass">
       <button class="btn small fs-btn" id="setup-fs" title="Full screen (F)">⛶ Full screen</button>
+      <div class="setup-audio">
+        <button class="btn small" id="setup-audio" title="Volume and music settings">🎚 Audio</button>
+        <button class="btn small" id="setup-music" title="Mute or unmute the title music">🎵 Music on</button>
+      </div>
       <div class="brand">
         <div class="eyebrow">Turn-based artillery</div>
         <h1>HOWITZER <span>HILLS</span></h1>
@@ -182,6 +186,36 @@
       <h2 id="ro-title"></h2>
       <table class="standings" id="ro-table"></table>
       <button id="ro-next" class="btn primary"></button>
+    </div>
+  </div>
+
+  <!-- Audio settings: opened from the title screen and the in-game HUD -->
+  <div id="audio-menu" class="screen hidden">
+    <div class="panel audio-panel glass" role="dialog" aria-labelledby="audio-title">
+      <div class="eyebrow">Settings</div>
+      <h2 id="audio-title">Audio</h2>
+      <label class="field check"><input type="checkbox" id="aud-mute"><span>Mute all sound <kbd>M</kbd></span></label>
+      <div class="slider-row">
+        <label for="aud-master">Master</label>
+        <input type="range" id="aud-master" min="0" max="100" step="1">
+        <span class="slider-val" id="aud-master-val"></span>
+      </div>
+      <div class="slider-row">
+        <label for="aud-sfx">Sound effects</label>
+        <input type="range" id="aud-sfx" min="0" max="100" step="1">
+        <span class="slider-val" id="aud-sfx-val"></span>
+      </div>
+      <div class="slider-row">
+        <label for="aud-music">Music</label>
+        <input type="range" id="aud-music" min="0" max="100" step="1">
+        <span class="slider-val" id="aud-music-val"></span>
+      </div>
+      <label class="field check"><input type="checkbox" id="aud-musicon"><span>Play the title screen music</span></label>
+      <p class="audio-note" id="audio-note">The music plays on the title screen.</p>
+      <div class="audio-foot">
+        <button class="btn small" id="aud-reset">Reset to defaults</button>
+        <button class="btn primary" id="aud-done">Done</button>
+      </div>
     </div>
   </div>
 
