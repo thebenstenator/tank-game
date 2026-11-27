@@ -723,15 +723,20 @@ class Game {
 
     if (b === 'funky') {
       Sound.pop(hit.x);
+      // Fanned out evenly (with a little jitter) so they carpet the area around the hit
+      // instead of scattering across the map: most land within ~150px.
       for (let i = 0; i < w.count; i++) {
-        const q = this.makeProjectile(hit.x, hit.y - 4, srand(-260, 260), srand(-480, -220), w, p.owner, 'bomblet');
+        const vx = ((i + 0.5) / w.count * 2 - 1) * 115 + srand(-18, 18);
+        const q = this.makeProjectile(hit.x, hit.y - 4, vx, srand(-330, -210), w, p.owner, 'bomblet');
         q.radius = 26; q.damage = 32; q.cleared = true;
         q.hue = (i * 360 / w.count) | 0;
         q.ignoreTank = hit.tank || null; q.ignoreT = hit.tank ? 0.25 : 0;
         this.projectiles.push(q);
       }
     } else if (b === 'leapfrog' && p.bounces > 1) {
-      const q = this.makeProjectile(hit.x, hit.y - p.radius * 0.5, p.vx * 0.65, -Math.max(180, Math.abs(p.vy) * 0.6), w, p.owner, 'shell');
+      // Short, low hops (~55–150px) so each blast lands just past the last one and walks into the target.
+      const hopVx = clamp(p.vx * 0.34, -110, 110), hopVy = clamp(Math.abs(p.vy) * 0.38, 130, 180);
+      const q = this.makeProjectile(hit.x, hit.y - p.radius * 0.5, hopVx, -hopVy, w, p.owner, 'shell');
       q.bounces = p.bounces - 1;
       q.radius = p.radius * 0.88;
       q.damage = p.damage * 0.9;
@@ -1080,7 +1085,7 @@ class Game {
         this.explode(x, y, 24, 22, by);
         const w = WEAPONS.funky;
         for (let i = 0; i < 6; i++) {
-          const q = this.makeProjectile(x, y - 6, srand(-240, 240), srand(-460, -220), w, by, 'bomblet');
+          const q = this.makeProjectile(x, y - 6, srand(-150, 150), srand(-380, -220), w, by, 'bomblet');
           q.radius = 22; q.damage = 26; q.cleared = true;
           q.hue = i * 60;
           this.projectiles.push(q);
